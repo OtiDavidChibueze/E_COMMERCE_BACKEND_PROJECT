@@ -9,7 +9,7 @@ const connectionToDataBase = () => {
     mongoose.connect(DB, { useNewUrlParser: true, UseUnifiedTopology: true })
     console.log('database connected')
   } catch (err) {
-    console.log('database not connected')
+    console.log(`database not connected :  ${err}`)
   }
 }
 
