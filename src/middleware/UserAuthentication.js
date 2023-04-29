@@ -37,7 +37,7 @@ const UserAuthToken = async (req, res, next) => {
             console.log(decodedToken)
 
             //* ASSIGNING THE USER_ID IN THE DECODED_TOKEN TO THE REQ.USER
-            req.user = { _id: decodedToken.adminId }
+            req.user = { _id: decodedToken.userId }
             next()
           }
         }
