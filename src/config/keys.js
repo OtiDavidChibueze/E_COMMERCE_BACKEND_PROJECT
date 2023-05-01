@@ -9,4 +9,7 @@ module.exports = {
   SUPER_ADMIN_SECRET: process.env.SUPER_ADMIN_SECRET,
   MAIL: process.env.MAIL,
   MAIL_P: process.env.MAIL_P,
+  CLOUD_NAME: process.env.CLOUD_NAME,
+  CLOUD_API_KEY: process.env.CLOUD_API_KEY,
+  CLOUD_API_SECRET: process.env.CLOUD_API_SECRET,
 }
