@@ -17,10 +17,14 @@ const cloudinaryUploads = async (fileToUploads) => {
         console.log(err)
         return resolve(null)
       } else {
-        return resolve({
-          secure_url: result.secure_url,
-          resource_type: 'auto',
-        })
+        return resolve(
+          {
+            urls: result.secure_url,
+          },
+          {
+            resource_type: 'auto',
+          }
+        )
       }
     })
   })
