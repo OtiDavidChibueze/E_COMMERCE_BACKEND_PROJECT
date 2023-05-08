@@ -54,6 +54,9 @@ module.exports.get_All_Users_And_Also_Search_Users_With_Emails = async (
 //* GET USER BY ID
 module.exports.get_users_by_id = async (req, res) => {
   try {
+    //* GETTING THE DETAILS IN THE PARAMS
+    const { userId } = req.params
+
     //* CHECKING IF ITS A VALID USER ID
     if (!mongoose.isValidObjectId(req.params.userId))
       return res.status(400).json({ error: 'invalid user id' })
@@ -150,6 +153,9 @@ module.exports.post_register = async (req, res) => {
 //* UPDATE USER BY ID
 module.exports.put_update_user = async (req, res) => {
   try {
+    //* GETTING THE USER ID IN THE PARAMS
+    const { userId } = req.params
+
     //* VALIDATING SCHEMA
     const { error } = userUpdateSchemaValidation(req.body)
     if (error) return res.status(422).send(error.details[0].message)
