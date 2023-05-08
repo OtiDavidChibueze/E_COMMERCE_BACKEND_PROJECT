@@ -15,7 +15,10 @@ const sendEmail = require('./nodeMailer')
 //*  USER END POINTS
 
 //* GET ALL USERS
-module.exports.get_users = async (req, res) => {
+module.exports.get_All_Users_And_Also_Search_Users_With_Emails = async (
+  req,
+  res
+) => {
   try {
     //* QUERY OPTIONS
     const options = {
@@ -145,7 +148,7 @@ module.exports.post_register = async (req, res) => {
 }
 
 //* UPDATE USER BY ID
-module.exports.put = async (req, res) => {
+module.exports.put_update_user = async (req, res) => {
   try {
     //* VALIDATING SCHEMA
     const { error } = userUpdateSchemaValidation(req.body)
