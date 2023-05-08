@@ -55,6 +55,10 @@ const UserSchema = new Schema(
         ref: 'Product',
       },
     ],
+    active: {
+      type: Boolean,
+      default: true,
+    },
     passwordChangedAT: {
       type: Date,
     },
