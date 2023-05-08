@@ -11,6 +11,7 @@ const {
 const { maxAge, createToken } = require('../jwt/userToken')
 const crypto = require('crypto')
 const sendEmail = require('./nodeMailer')
+const keys = require('../config/keys')
 
 //*  USER END POINTS
 
@@ -199,13 +200,23 @@ module.exports.post_login = async (req, res) => {
 
     //* IF REGISTERED THEN .... COMPARE THE PASSWORDS
     if (user && bcrypt.compareSync(password, user.password)) {
+      //* IF PASSWORD CORRECT UPDATE THE ACTIVE STATUS
+      await UserModel.findOneAndUpdate(
+        { email },
+        {
+          active: true,
+        },
+        {
+          new: true,
+        }
+      )
+
       //* CREATE A LOGIN TOKEN FOR THE USER
-      const secret = process.env.SECRET
       const Token = jwt.sign(
         {
           userId: user.id,
         },
-        secret,
+        keys.SECRET,
         {
           expiresIn: maxAge,
         }
@@ -231,16 +242,33 @@ module.exports.post_login = async (req, res) => {
 }
 
 //* LOG OUT USER
-module.exports.post_logOut = (req, res) => {
-  try {
-    //* REMOVE THE TOKEN FROM THE COOKIE
-    res.cookie('User', '', { maxAge: 1, httpOnly: true })
+module.exports.post_logOut = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN LOGOUT
+  const loggedInUserId = req.user._id
 
-    //* SEND A SUCCESS RESPONSE TO THE CLIENT
-    res.status(200).json({ success: true, message: 'logged out user' })
-  } catch (error) {
-    res.status(500).json({ status: 'internet error', error: error })
-  }
+  //* FIND THE ADMIN AND UPDATE THE ACTIVE STATUS
+  const findUser = await UserModel.findByIdAndUpdate(
+    loggedInUserId,
+    {
+      active: false,
+    },
+    {
+      new: true,
+    }
+  )
+
+  //* REMOVE THE TOKEN FROM THE COOKIE
+  res.cookie('User', '', {
+    maxAge: 1,
+    httpOnly: true,
+  })
+
+  //* SEND A SUCCESS RESPONSE TO THE CLIENT
+  res.status(200).json({
+    status: 'success',
+    message: 'user logged out',
+    active: findUser.active,
+  })
 }
 
 //* BLOCK A USER
@@ -350,7 +378,7 @@ module.exports.changeUserPassword = async (req, res) => {
     //* SAVE THE USER CHANGES
     await user.save()
 
-    //* SEND A SUCCESS RESPONSE TO THE CLINT
+    //* SEND A SUCCESS RESPONSE TO THE CLIENT
     return res
       .status(200)
       .json({ user: user.email, message: 'password updated' })
@@ -376,7 +404,7 @@ module.exports.forgottenPassword = async (req, res) => {
       const resetToken = await user.createPasswordResetToken()
 
       //* SEND A RESET LINK
-      const resetUrl = `Hi , please link the link to reset your password , link is only valid for 10min <a href = 'http://localhost:4000/api/eshop/user/resetToken/${resetToken}'>click here</a>`
+      const resetUrl = `Hi , please clink the link to reset your password , link is only valid for 10min <a href = 'http://localhost:4000/api/eshop/user/resetToken/${resetToken}'>click here</a>`
 
       //* EMAIL DATA
       const data = {
