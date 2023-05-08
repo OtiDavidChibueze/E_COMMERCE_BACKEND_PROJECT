@@ -5,7 +5,11 @@ const { AdminAuthToken } = require('../middleware/AdminAuthentication')
 const { UserAuthToken } = require('../middleware/UserAuthentication')
 
 //* USER URL ROUTE
-router.get('/', AdminAuthToken, controller.get_users)
+router.get(
+  '/',
+  AdminAuthToken,
+  controller.get_All_Users_And_Also_Search_Users_With_Emails
+)
 
 router.get('/counts', AdminAuthToken, controller.get_users_counts)
 
@@ -19,7 +23,7 @@ router.post('/register', controller.post_register)
 
 router.post('/logout', UserAuthToken, controller.post_logOut)
 
-router.put('/:userId', UserAuthToken, controller.put)
+router.put('/:userId', UserAuthToken, controller.put_update_user)
 
 router.put('/blockUser/:userId', AdminAuthToken, controller.blockUserById)
 
