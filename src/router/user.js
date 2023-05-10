@@ -21,13 +21,13 @@ router.put('/changePassword', UserAuthToken, controller.changeUserPassword)
 
 router.get('/:userId', AdminAuthToken, controller.get_users_by_id)
 
-router.put('/login', controller.post_login)
+router.post('/login', controller.post_login)
 
 router.post('/register', controller.post_register)
 
 router.post('/applyDiscount', UserAuthToken, controller.applyDiscount)
 
-router.put('/logout', UserAuthToken, controller.post_logOut)
+router.post('/logout', UserAuthToken, controller.post_logOut)
 
 router.put('/:userId', UserAuthToken, controller.put_update_user)
 
