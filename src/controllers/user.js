@@ -1,17 +1,25 @@
 //* USER CONTROLLER
 const UserModel = require('../model/user')
+const ProductModel = require('../model/product')
+const CartModel = require('../model/cart')
+
 const jwt = require('jsonwebtoken')
+const { maxAge, createToken } = require('../jwt/userToken')
+
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
+const crypto = require('crypto')
+
 const {
   userRegisterSchemaValidation,
   userUpdateSchemaValidation,
   resetAndChangePasswordValidation,
 } = require('../Validations/schema/user')
-const { maxAge, createToken } = require('../jwt/userToken')
-const crypto = require('crypto')
-const sendEmail = require('./nodeMailer')
+
 const keys = require('../config/keys')
+const sendEmail = require('./nodeMailer')
+const CouponModel = require('../model/coupon')
+const { productResizeImage } = require('../middleware/uploadImages')
 
 //*  USER END POINTS
 
@@ -504,4 +512,204 @@ module.exports.delete_user = async (req, res) => {
   } catch (error) {
     console.log(error)
   }
+}
+
+//* GET USER WISHLIST
+module.exports.getWishList = async (req, res) => {
+  try {
+    //* GETTING THE LOGGED IN USER ID
+    const loggedInUserId = req.user._id
+
+    //* FIND THE USER WITH THE ID
+    const user = await UserModel.findById(loggedInUserId).populate('wishList')
+
+    //* IF USER EXISTS
+    if (!user) return res.status(404).json({ message: 'user is not found' })
+
+    //* SEND A SUCCESS RESPONSE TO THE CLIENT
+    res.status(200).json({ wishList: user.wishList })
+  } catch (err) {
+    console.log({ error: err })
+  }
+}
+
+//* ADD ADDRESS
+module.exports.add_Address = async (req, res) => {
+  //* GET THE LOGGED IN USER ID
+  const loggedInUserId = req.user._id
+
+  try {
+    //* FIND THE USER AND UPDATE
+    const user = await UserModel.findByIdAndUpdate(
+      loggedInUserId,
+      {
+        address: req.body.address,
+      },
+      {
+        new: true,
+      }
+    )
+
+    //* IF USER ISN'T FOUND
+    if (!user)
+      return res
+        .status(404)
+        .json({ status: 'not found', message: 'user not found' })
+
+    //* SEND A SUCCESS RESPONSE TO THE USER
+    res.status(200).json({
+      status: 'success',
+      message: 'new address added',
+      address: user.address,
+    })
+  } catch (error) {
+    console.log({ error: err })
+  }
+}
+
+//* ADD TO CART
+module.exports.addToCart = async (req, res) => {
+  //* GETTING THE DETAILS IN THE BODY
+  const { cart } = req.body
+
+  //* GETTING THE LOGGED IN USER ID
+  const { _id } = req.user
+
+  try {
+    //* MAKING THE PRODUCTS AN EMPTY ARRAY
+    let products = []
+
+    //* FINDING THE LOGGED IN USER
+    const user = await UserModel.findById({ _id })
+
+    //* IF USER DON'T EXISTS  .....
+    if (!user) return res.status(404).json({ message: ' user not found' })
+
+    //* CHECKING IF THE USER  ALREADY HAS A CART
+    const alreadyCart = await UserModel.findOne({ orderBy: user._id })
+
+    //* IF YES ... REMOVE THE USER CART
+    if (alreadyCart) {
+      alreadyCart.remove()
+    }
+
+    //* LOOP THROUGH THE EMPTY CART
+    for (let i = 0; i < cart.length; i++) {
+      //* DECLARE AN EMPTY OBJECT
+      const object = {}
+
+      //* ASSIGN THE OBJECTS PROPERTIES TO THE CART PROPERTIES
+      object.product = cart[i]._id
+      object.count = cart[i].count
+      object.color = cart[i].color
+
+      //* GET PRODUCT PRICE
+      const getPrice = await ProductModel.findById(cart[i]._id)
+        .select('price')
+        .exec()
+
+      //* ASSIGN THE OBJECT PROPERTY TO THE CART PROPERTY
+      object.price = getPrice.price
+
+      //*  PUSH THE OBJECTS TO THE EMPTY PRODUCT ARRAY
+      products.push(object)
+    }
+
+    //* CALCULATE CART TOTAL
+    let CartTotal = 0
+
+    //* LOOP THROUGH THE PRODUCTS
+    for (let i = 0; i < products.length; i++) {
+      CartTotal = CartTotal + products[i].price * products[i].count
+    }
+
+    //* CREATE A NEW CART
+    const newCart = new CartModel({
+      products,
+      CartTotal,
+      orderBy: user._id,
+    })
+
+    //* SAVE THE CHANGES
+    await newCart.save()
+
+    //* SEND A SUCCESS RESPONSE TO THE CLIENT
+    res.status(200).json({ cart: newCart })
+  } catch (error) {
+    console.log({ error })
+  }
+}
+
+//* GET USER CART
+module.exports.getUserCart = async (req, res) => {
+  //*  GET THE LOGGED IN USER ID
+  const { _id } = req.user
+
+  try {
+    //* FIND THE LOGGED IN USER
+    const user = await UserModel.findOne({ _id })
+
+    //* IF USER NOT FOUND
+    if (!user) return res.status(404).json({ message: 'user not found' })
+
+    //* GET THE LOGGED IN USER CART
+    const getCart = await CartModel.findOne({ orderBy: user._id })
+
+    //* SEND THE CART TO THE CLIENT
+    res.status(200).json({ cart: getCart })
+  } catch (error) {
+    console.log({ error })
+  }
+}
+
+//* EMPTY CART
+module.exports.emptyCart = async (req, res) => {
+  //* GETTING THE LOGGED IN USER ID
+  const { _id } = req.user
+
+  try {
+    //* FIND THE LOGGED IN USER
+    const user = await UserModel.findOne({ _id })
+
+    //* GET THE LOGGED IN USER CART AND REMOVE
+    const cart = await CartModel.findOneAndRemove({ orderBy: user._id })
+
+    //* SEND A SUCCESS RESPONSE TO THE CLIENT
+    res.status(200).json({ cart })
+  } catch (error) {
+    console.log({ error })
+  }
+}
+
+//* APPLY DISCOUNT TO CART
+module.exports.applyDiscount = async (req, res) => {
+  //* GETTING THE LOGGED IN USER
+  const { _id } = req.user
+
+  //* ACCESS THE DETAILS IN THE BODY
+  const { coupon } = req.body
+
+  //* FIND THE LOGGED IN USER
+  const user = await UserModel.findOne({ _id })
+
+  //* GETTING THE COUPON
+  const ValidCoupon = await CouponModel.findOne({ name: coupon })
+
+  //* IF COUPON  DOESN'T EXIST
+  if (!ValidCoupon)
+    return res.status(404).json({ message: 'coupon not found or expired' })
+
+  //* GET THE LOGGED IN USER CART
+  const { CartTotal } = await CartModel.findOne({ orderBy: user._id }).populate(
+    { path: 'products', populate: { path: 'product' } }
+  )
+
+  //* CALCULATE THE TOTAL AFTER DISCOUNT
+  let totalAfterDiscount = (
+    CartTotal -
+    (CartTotal * ValidCoupon.discount) / 100
+  ).toFixed(2)
+
+  //* SEND THE TOTAL AFTER DISCOUNT AMOUNT TO THE CLIENT
+  res.status(200).json({ totalAfterDiscount })
 }
