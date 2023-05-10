@@ -30,6 +30,10 @@ const UserSchema = new Schema(
     country: {
       type: String,
     },
+    address: {
+      type: String,
+      default: '',
+    },
     role: {
       type: String,
       default: 'user',
@@ -41,12 +45,6 @@ const UserSchema = new Schema(
     cart: [
       {
         type: String,
-      },
-    ],
-    shippingAddress: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Address',
       },
     ],
     wishList: [
