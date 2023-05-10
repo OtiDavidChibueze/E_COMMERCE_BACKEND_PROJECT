@@ -5,8 +5,7 @@ const keys = require('../config/keys')
 //* CREATE USER TOKEN
 const maxAge = 1 * 24 * 60 * 60
 const createToken = (id) => {
-  const secret = keys.SECRET
-  return jwt.sign({ id }, secret, {
+  return jwt.sign({ id }, keys.SECRET, {
     expiresIn: maxAge,
   })
 }
