@@ -777,13 +777,17 @@ module.exports.createOrder = async (req, res) => {
 //* GET USER ORDER
 module.exports.getOrder = async (req, res) => {
   try {
+    //* GET THE LOGGED IN USER ID
     const { _id } = req.user
 
+    //* FIND THE USER ORDER WITH HIS ID
     const userOrder = await OrderModel.findOne({ orderBy: _id })
 
+    //* IF NO ORDER IS FOUND ...
     if (!userOrder) return res.status(404).json({ message: 'no order found' })
 
-    res.json({ orders: userOrder })
+    //* SEND THE ORDER TO THE CLIENT
+    res.status(200).json({ orders: userOrder })
   } catch (error) {
     console.log({ error })
   }
