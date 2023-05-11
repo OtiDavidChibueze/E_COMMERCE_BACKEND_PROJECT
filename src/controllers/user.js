@@ -9,6 +9,7 @@ const { maxAge, createToken } = require('../jwt/userToken')
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
 const crypto = require('crypto')
+const uniqid = require('uniqid')
 
 const {
   userRegisterSchemaValidation,
@@ -20,6 +21,7 @@ const keys = require('../config/keys')
 const sendEmail = require('./nodeMailer')
 const CouponModel = require('../model/coupon')
 const { productResizeImage } = require('../middleware/uploadImages')
+const OrderModel = require('../model/order')
 
 //*  USER END POINTS
 
@@ -710,6 +712,79 @@ module.exports.applyDiscount = async (req, res) => {
     (CartTotal * ValidCoupon.discount) / 100
   ).toFixed(2)
 
+  //* UPDATE THE TOTAL AFTER DISCOUNT PROPERTY IN THE CART
+  await CartModel.findOneAndUpdate(
+    { orderBy: user._id },
+    {
+      totalAfterDiscount,
+    },
+    {
+      new: true,
+    }
+  )
+
   //* SEND THE TOTAL AFTER DISCOUNT AMOUNT TO THE CLIENT
   res.status(200).json({ totalAfterDiscount })
+}
+
+//* ORDER CART ITEMS
+module.exports.createOrder = async (req, res) => {
+  const { _id } = req.user
+
+  const { COD, couponApplied } = req.body
+
+  if (!COD) return res.status(400).json({ message: 'create cash order failed' })
+
+  const user = await UserModel.findById({ _id })
+
+  const userCart = await CartModel.findOne({ orderBy: user._id })
+
+  let totalAmount = 0
+
+  if (couponApplied && user.totalAfterDiscount) {
+    totalAmount = userCart.totalAfterDiscount
+  } else {
+    totalAmount = userCart.CartAmount
+  }
+
+  let newOrder = await new OrderModel({
+    products: userCart.products,
+    paymentIntent: {
+      id: uniqid(),
+      method: 'COD',
+      status: 'Cash On Delivery',
+      createdAt: Date.now(),
+      currency: 'usd',
+    },
+    orderStatus: 'Cash On Delivery',
+    orderBy: user._id,
+  }).save()
+
+  let update = userCart.products.map((item) => {
+    return {
+      updateOne: {
+        filter: { _id: item.product._id },
+        update: { $inc: { countInStock: -item.count, sold: +item.count } },
+      },
+    }
+  })
+
+  const updated = await ProductModel.bulkWrite(update, {})
+
+  res.json({ message: 'success' })
+}
+
+//* GET USER ORDER
+module.exports.getOrder = async (req, res) => {
+  try {
+    const { _id } = req.user
+
+    const userOrder = await OrderModel.findOne({ orderBy: _id })
+
+    if (!userOrder) return res.status(404).json({ message: 'no order found' })
+
+    res.json({ orders: userOrder })
+  } catch (error) {
+    console.log({ error })
+  }
 }
