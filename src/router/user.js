@@ -47,4 +47,8 @@ router.put('/add/Address', UserAuthToken, controller.add_Address)
 
 router.post('/addToCart', UserAuthToken, controller.addToCart)
 
+router.get('/getOrder', UserAuthToken, controller.getOrder)
+
+router.post('/createOrder', UserAuthToken, controller.createOrder)
+
 module.exports = router
