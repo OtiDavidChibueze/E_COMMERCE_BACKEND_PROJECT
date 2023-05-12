@@ -5,9 +5,10 @@ const bcrypt = require('bcrypt')
 const crypto = require('crypto')
 const mongoosePaginate = require('mongoose-paginate-v2')
 
+//* CREATING SUPER ADMIN SCHEMA
 const SuperAdminSchema = new Schema(
   {
-    fullName: {
+    superAdminName: {
       type: String,
       required: true,
     },
@@ -15,50 +16,47 @@ const SuperAdminSchema = new Schema(
       type: String,
       required: true,
       unique: true,
-      lowercase: true,
     },
     password: {
       type: String,
       required: true,
-      min: 6,
-      max: 20,
     },
     mobile: {
       type: String,
       required: true,
       unique: true,
+      min: 11,
     },
     country: {
       type: String,
       required: true,
     },
-    city: {
-      type: String,
-      required: true,
-    },
-    zipCode: {
-      type: String,
-      required: true,
-    },
-    street: {
-      type: String,
-      required: true,
-    },
-    homeAddress: {
+    address: {
       type: String,
       required: true,
     },
     role: {
       type: String,
-      default: 'Admin',
-    },
-    active: {
-      type: Boolean,
-      default: true,
+      default: 'superAdmin',
     },
     isBlocked: {
       type: Boolean,
       default: false,
+    },
+    cart: [
+      {
+        type: String,
+      },
+    ],
+    wishList: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+      },
+    ],
+    active: {
+      type: Boolean,
+      default: true,
     },
     passwordChangedAT: {
       type: Date,
@@ -73,18 +71,19 @@ const SuperAdminSchema = new Schema(
   { timestamps: true }
 )
 
-//* HASH PASSWORD BEFORE SAVING TO THE DATABASE
+//* HASH A SUPER ADMIN PASSWORD BEFORE SAVING THE SUPER ADMIN
 SuperAdminSchema.pre('save', async function (next) {
-  //* CHECKING IF THE PASSWORD ISN'T MODIFIED
+  //* CHECKING IF THE PASSWORD IS NOT MODIFIED
   if (!this.isModified('password')) {
-    return next()
+    next()
   }
+  //* GENERATE SALT
   const salt = await bcrypt.genSalt()
   this.password = await bcrypt.hash(this.password, salt)
   next()
 })
 
-//* COMPARE OLD PASSWORD BEFORE CHANGE
+//* COMPARE OLD PASSWORD BEFORE CHANGING
 SuperAdminSchema.methods.comparePassword = async function (password) {
   try {
     return await bcrypt.compare(password, this.password)
@@ -94,7 +93,7 @@ SuperAdminSchema.methods.comparePassword = async function (password) {
   }
 }
 
-//* CREATE PASSWORD RESET TOKEN
+//* PASSWORD RESET TOKEN
 SuperAdminSchema.methods.createPasswordResetToken = async function () {
   const resetToken = crypto.randomBytes(32).toString('hex')
   this.passwordResetToken = crypto
@@ -110,7 +109,7 @@ SuperAdminSchema.methods.createPasswordResetToken = async function () {
 SuperAdminSchema.plugin(mongoosePaginate)
 
 //* CREATE A MODEL
-const SuperAdminModel = mongoose.model('SuperAdmin', SuperAdminSchema)
+const SuperAdminModel = mongoose.model('Super Admin', SuperAdminSchema)
 
 //* EXPORT THE MODEL
 module.exports = SuperAdminModel
