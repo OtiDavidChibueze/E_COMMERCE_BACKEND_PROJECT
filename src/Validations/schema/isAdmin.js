@@ -1,44 +1,43 @@
+//* ADMIN SCHEMA VALIDATION
 const joi = require('joi')
 
-//* IS ADMIN REGISTER SCHEMA VALIDATION
-module.exports.isAdminRegisterSchemaValidation = (data) => {
-  const registerSchema = joi
+//* VALIDATION SCHEMA
+module.exports.adminRegisterSchemaValidation = (data) => {
+  const adminSchema = joi
     .object({
-      fullName: joi.string().required().min(3).max(20),
-      email: joi.string().required().lowercase().email(),
-      password: joi.string().required().min(5).max(20),
+      email: joi.string().required().email().lowercase(),
+      password: joi.string().min(6).max(20).required(),
+      adminName: joi.string().min(3).max(20).required(),
       mobile: joi
         .string()
         .regex(/^0[0-9]{10}$/)
         .required(),
-      country: joi.string().required(),
-      city: joi.string().required(),
-      zipCode: joi.string().required(),
-      street: joi.string().required(),
-      homeAddress: joi.string().required(),
+      country: joi.string().required().min(3),
+      address: joi.string().required(),
     })
     .options({ stripUnknown: true })
-  return registerSchema.validate(data, { abortEarly: false })
+
+  return adminSchema.validate(data, { abortEarly: false })
 }
 
-//* IS ADMIN UPDATE SCHEMA VALIDATION
-module.exports.isAdminUpdateSchemaValidation = (data) => {
-  const registerSchema = joi.object({
-    fullName: joi.string().required().min(3),
-    mobile: joi
-      .string()
-      .regex(/^0[0-9]{10}$/)
-      .required(),
-    country: joi.string().required().min(3),
-    city: joi.string().required().min(3),
-    zipCode: joi.string().required(),
-    street: joi.string().required(),
-    homeAddress: joi.string().required(),
-  })
-  return registerSchema.validate(data, { abortEarly: false })
+//* ADMIN UPDATE SCHEMA VALIDATION
+module.exports.adminUpdateSchemaValidation = (data) => {
+  const adminSchema = joi
+    .object({
+      adminName: joi.string().required().min(3).max(20),
+      country: joi.string().required(),
+      mobile: joi
+        .string()
+        .regex(/^0[0-9]{10}$/)
+        .required(),
+      address: joi.string().required(),
+    })
+    .options({ stripUnknown: true })
+
+  return adminSchema.validate(data, { abortEarly: false })
 }
 
-//* ADMIN PASSWORD RESET AND PASSWORD CHANGE VALIDATION
+//* ADMIN PASSWORD RESET AND CHANGE PASSWORD VALIDATIONS
 module.exports.resetAndChangePasswordValidation = (data) => {
   const schema = joi
     .object({
