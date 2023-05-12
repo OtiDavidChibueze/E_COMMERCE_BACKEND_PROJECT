@@ -11,15 +11,21 @@ router.get(
   controller.get_All_Users_And_Also_Search_Users_With_Emails
 )
 
+router.get('/getOrder', UserAuthToken, controller.getOrder)
+
 router.get('/getCart', UserAuthToken, controller.getUserCart)
 
 router.get('/counts', AdminAuthToken, controller.get_users_counts)
+
+router.post('/addToWishList', UserAuthToken, controller.addToWishList)
 
 router.get('/wishList', UserAuthToken, controller.getWishList)
 
 router.put('/changePassword', UserAuthToken, controller.changeUserPassword)
 
 router.get('/:userId', AdminAuthToken, controller.get_users_by_id)
+
+router.put('/updateUser', UserAuthToken, controller.updateUser)
 
 router.post('/login', controller.post_login)
 
@@ -29,7 +35,7 @@ router.post('/applyDiscount', UserAuthToken, controller.applyDiscount)
 
 router.post('/logout', UserAuthToken, controller.post_logOut)
 
-router.put('/:userId', UserAuthToken, controller.put_update_user)
+router.put('/:userId', AdminAuthToken, controller.put_update_user_By_Id)
 
 router.put('/blockUser/:userId', AdminAuthToken, controller.blockUserById)
 
@@ -46,8 +52,6 @@ router.delete('/:userId', AdminAuthToken, controller.delete_user)
 router.put('/add/Address', UserAuthToken, controller.add_Address)
 
 router.post('/addToCart', UserAuthToken, controller.addToCart)
-
-router.get('/getOrder', UserAuthToken, controller.getOrder)
 
 router.post('/createOrder', UserAuthToken, controller.createOrder)
 
