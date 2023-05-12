@@ -20,7 +20,6 @@ const {
 const keys = require('../config/keys')
 const sendEmail = require('./nodeMailer')
 const CouponModel = require('../model/coupon')
-const { productResizeImage } = require('../middleware/uploadImages')
 const OrderModel = require('../model/order')
 
 //*  USER END POINTS
@@ -112,7 +111,7 @@ module.exports.post_register = async (req, res) => {
 
   try {
     //* ACCESSING THE DETAILS IN THE BODY
-    const { email, userName, password, mobile, country } = req.body
+    const { email, userName, password, mobile, country, address } = req.body
 
     //* CHECKING IF THE MOBILE NUMBER IS ALREADY EXISTS
     const mobileExists = await UserModel.findOne({ mobile })
@@ -137,6 +136,7 @@ module.exports.post_register = async (req, res) => {
       userName,
       password,
       country,
+      address,
     })
 
     //* SAVE THE USER IN THE DB
@@ -161,8 +161,51 @@ module.exports.post_register = async (req, res) => {
   }
 }
 
+//* UPDATE USER
+module.exports.updateUser = async (req, res) => {
+  //* VALIDATING THE DETAILS IN THE BODY
+  const { error } = userUpdateSchemaValidation(req.body)
+  if (error) return res.status(400).json(error.details[0].message)
+
+  //* GETTING THE LOGGED IN USER ID
+  const { _id } = req.user
+
+  //* ACCESSING THE DETAILS IN THE BODY
+  const { userName, mobile, country, address } = req.body
+
+  try {
+    //* GET THE USER AND UPDATE....
+    //! ONLY LOGGED IN USER CAN UPDATE THEIR SELF
+    const user = await UserModel.findByIdAndUpdate(
+      { _id },
+      {
+        userName: userName,
+        mobile: mobile,
+        country: country,
+        address: address,
+      },
+      { new: true }
+    )
+
+    //* IF ERROR OCCURS DURING THE UPDATE ...
+    if (!user)
+      return res
+        .status(500)
+        .json({ status: 'internet error', message: 'not updated ' })
+
+    //* SEND A SUCCESS RESPONSE TO THE CLIENT
+    res.status(200).json({ updated: user })
+  } catch (error) {
+    console.log({ error })
+  }
+}
+
 //* UPDATE USER BY ID
-module.exports.put_update_user = async (req, res) => {
+module.exports.put_update_user_By_Id = async (req, res) => {
+  //* VALIDATING THE DETAILS IN THE BODY
+  const { error } = userUpdateSchemaValidation(req.body)
+  if (error) return res.status(400).json(error.details[0].message)
+
   try {
     //* GETTING THE USER ID IN THE PARAMS
     const { userId } = req.params
@@ -317,6 +360,7 @@ module.exports.blockUserById = async (req, res) => {
   }
 }
 
+//* UNBLOCK USER
 module.exports.unBlockUserById = async (req, res) => {
   //* GETTING THE USER ID THE PARAMS
   const { userId } = req.params
@@ -354,17 +398,16 @@ module.exports.unBlockUserById = async (req, res) => {
 
 //* CHANGE USER PASSWORD
 module.exports.changeUserPassword = async (req, res) => {
-  //* GETTING THE DETAILS IN THE BODY
-  const { oldPassword, newPassword } = req.body
-
   //* VALIDATING THE USERS DETAILS IN THE BODY
   const { error } = resetAndChangePasswordValidation(req.body)
-
   //* IF ERROR OCCURS
   if (error)
     return res
       .status(422)
       .json({ status: 'unprocessed entity', error: error.details[0].message })
+
+  //* GETTING THE DETAILS IN THE BODY
+  const { oldPassword, newPassword } = req.body
 
   //* ONLY LOGGED IN USERS CAN CHANGE PASSWORD
   const loggedInUserId = req.user._id
@@ -439,18 +482,18 @@ module.exports.forgottenPassword = async (req, res) => {
 
 //* RESET TOKEN
 module.exports.resetToken = async (req, res) => {
-  //* GETTING THE TOKEN IN THE PARAMS
-  const { token } = req.params
-
-  //* GETTING THE DETAILS IN THE BODY
-  const { newPassword } = req.body
-
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = resetAndChangePasswordValidation(req.body)
   if (error)
     return res
       .status(422)
       .send({ status: 'unprocessed entity', error: error.details[0].message })
+
+  //* GETTING THE TOKEN IN THE PARAMS
+  const { token } = req.params
+
+  //* GETTING THE DETAILS IN THE BODY
+  const { newPassword } = req.body
 
   try {
     //* HASH THE PROVIDED TOKEN IN THE PARAMS
@@ -489,14 +532,14 @@ module.exports.resetToken = async (req, res) => {
 
 //* DELETE USER BY ID
 module.exports.delete_user = async (req, res) => {
+  //* CHECKING IF ITS A VALID USER ID
+  if (!mongoose.isValidObjectId(req.params.userId))
+    return res.status(400).json({ error: 'invalid user id' })
+
+  //* GETTING THE USER ID IN THE PARAMS
+  const { userId } = req.params
+
   try {
-    //* GETTING THE USER ID IN THE PARAMS
-    const { userId } = req.params
-
-    //* CHECKING IF ITS A VALID USER ID
-    if (!mongoose.isValidObjectId(req.params.userId))
-      return res.status(400).json({ error: 'invalid user id' })
-
     //* FIND THE USER AND DELETE
     const delUser = await UserModel.findByIdAndDelete(userId)
 
@@ -516,12 +559,58 @@ module.exports.delete_user = async (req, res) => {
   }
 }
 
+//* ADD PRODUCT TO WISHLIST
+module.exports.addToWishList = async (req, res) => {
+  //* ACCESSING THE DETAILS IN THE BODY
+  const { productId } = req.body
+
+  //* GETTING THE LOGGED IN USER ID
+  const loggedInUserId = req.user._id
+
+  try {
+    const product = await ProductModel.findById(productId)
+
+    if (!product) return res.status(404).json({ message: 'product not found' })
+
+    //* GET THE USER ID
+    const user = await UserModel.findById(loggedInUserId)
+
+    //* CHECK IF THE PRODUCT HAS BEEN ADDED TO WISHLIST
+    const alreadyAdded = user.wishList.find(
+      (id) => id.toString() === productId.toString()
+    )
+
+    //* CLICK THE SEND BUTTON TO ADD THE PRODUCT OR DOUBLE CLICK THE SEND BUTTON TO REMOVE THE PRODUCT
+    if (alreadyAdded) {
+      //* UPDATE THE USER WISHLIST
+      user.wishList.pull(productId)
+
+      //* SAVE THE USER
+      await user.save(product)
+
+      //* SEND A RESPONSE TO THE CLIENT
+      return res.status(200).json({ user })
+    } else {
+      //* ADD THE PRODUCT TO WISH LIST
+      user.wishList.push(productId)
+
+      //* SAVE THE USER
+      await user.save(product)
+
+      //* SEND A RESPONSE TO THE CLIENT
+      return res.status(200).json({ user })
+    }
+  } catch (error) {
+    console.log(error)
+  }
+}
+
 //* GET USER WISHLIST
 module.exports.getWishList = async (req, res) => {
-  try {
-    //* GETTING THE LOGGED IN USER ID
-    const loggedInUserId = req.user._id
+  //* GETTING THE LOGGED IN USER ID
+  const loggedInUserId = req.user._id
 
+  try {
     //* FIND THE USER WITH THE ID
     const user = await UserModel.findById(loggedInUserId).populate('wishList')
 
@@ -540,12 +629,15 @@ module.exports.add_Address = async (req, res) => {
   //* GET THE LOGGED IN USER ID
   const loggedInUserId = req.user._id
 
+  //* GETTING THE DETAILS IN THE BODY
+  const { address } = req.body
+
   try {
     //* FIND THE USER AND UPDATE
     const user = await UserModel.findByIdAndUpdate(
       loggedInUserId,
       {
-        address: req.body.address,
+        address: address,
       },
       {
         new: true,
@@ -610,7 +702,7 @@ module.exports.addToCart = async (req, res) => {
         .select('price')
         .exec()
 
-      //* ASSIGN THE OBJECT PROPERTY TO THE CART PROPERTY
+      //* ASSIGN THE OBJECT PRICE PROPERTY TO THE CART PROPERTY
       object.price = getPrice.price
 
       //*  PUSH THE OBJECTS TO THE EMPTY PRODUCT ARRAY
@@ -657,6 +749,9 @@ module.exports.getUserCart = async (req, res) => {
     //* GET THE LOGGED IN USER CART
     const getCart = await CartModel.findOne({ orderBy: user._id })
 
+    //* IF NO ITEMS IN CART .....
+    if (!getCart) return res.status(404).json({ message: 'no items in cart' })
+
     //* SEND THE CART TO THE CLIENT
     res.status(200).json({ cart: getCart })
   } catch (error) {
@@ -676,8 +771,11 @@ module.exports.emptyCart = async (req, res) => {
     //* GET THE LOGGED IN USER CART AND REMOVE
     const cart = await CartModel.findOneAndRemove({ orderBy: user._id })
 
+    //* IF CART ISN'T REMOVED
+    if (!cart) return res.status(404).json({ message: ' no cart available' })
+
     //* SEND A SUCCESS RESPONSE TO THE CLIENT
-    res.status(200).json({ cart })
+    res.status(200).json({ message: 'cart empty' })
   } catch (error) {
     console.log({ error })
   }
@@ -727,67 +825,86 @@ module.exports.applyDiscount = async (req, res) => {
   res.status(200).json({ totalAfterDiscount })
 }
 
-//* ORDER CART ITEMS
+//* CREATE ORDER FOR ITEMS IN THE CART
 module.exports.createOrder = async (req, res) => {
+  //* GETTING THE LOGGED IN USER  ID
   const { _id } = req.user
 
+  //* ACCESSING THE DETAILS IN THE BODY
   const { COD, couponApplied } = req.body
 
-  if (!COD) return res.status(400).json({ message: 'create cash order failed' })
+  //* IF IT'S NOT CASH ON DELIVERY
+  if (!COD) return res.status(400).json({ message: ' cash on delivery failed' })
 
-  const user = await UserModel.findById({ _id })
+  try {
+    //* GETTING THE LOGGED IN USER
+    const user = await UserModel.findById({ _id })
 
-  const userCart = await CartModel.findOne({ orderBy: user._id })
+    //* GETTING THE LOGGED IN USER CART
+    const userCart = await CartModel.findOne({ orderBy: user._id })
 
-  let totalAmount = 0
+    //* IF NOT CART...
+    if (!userCart) return res.status(404).json({ message: 'no cart available' })
 
-  if (couponApplied && user.totalAfterDiscount) {
-    totalAmount = userCart.totalAfterDiscount
-  } else {
-    totalAmount = userCart.CartAmount
-  }
-
-  let newOrder = await new OrderModel({
-    products: userCart.products,
-    paymentIntent: {
-      id: uniqid(),
-      method: 'COD',
-      status: 'Cash On Delivery',
-      createdAt: Date.now(),
-      currency: 'usd',
-    },
-    orderStatus: 'Cash On Delivery',
-    orderBy: user._id,
-  }).save()
-
-  let update = userCart.products.map((item) => {
-    return {
-      updateOne: {
-        filter: { _id: item.product._id },
-        update: { $inc: { countInStock: -item.count, sold: +item.count } },
-      },
+    //* CALCULATE THE TOTAL AMOUNTS
+    let totalAmount = 0
+    if (couponApplied && userCart.totalAfterDiscount) {
+      totalAmount = user.totalAfterDiscount
+    } else {
+      totalAmount = user.CartTotal
     }
-  })
 
-  const updated = await ProductModel.bulkWrite(update, {})
+    //* CREATE NEW ORDER
+    const newOrder = await OrderModel.create({
+      products: userCart.products,
+      paymentIntent: {
+        id: uniqid(),
+        status: 'Not Processed',
+        currency: 'usd',
+        createdAt: Date.now(),
+      },
+      orderBy: user._id,
+    })
 
-  res.json({ message: 'success' })
+    //* UPDATE THE PRODUCT COUNT IN STOCK AND SOLD
+    const update = userCart.products.map((item) => {
+      return {
+        updateOne: {
+          filter: { _id: item.product._id },
+          update: {
+            $inc: { countInStock: -item.countInStock, sold: +item.sold },
+          },
+        },
+      }
+    })
+
+    //* BULK WRITE THE UPDATE
+    await ProductModel.bulkWrite(update, {})
+
+    //* SEND A SUCCESS RESPONSE
+    res.status(200).json({ status: 'success', message: 'order booked' })
+  } catch (error) {
+    console.log({ error })
+  }
 }
 
-//* GET USER ORDER
+//* GET ORDER
 module.exports.getOrder = async (req, res) => {
+  //* GETTING LOGGED IN USER
+  const { _id } = req.user
+
   try {
-    //* GET THE LOGGED IN USER ID
-    const { _id } = req.user
+    //* FIND THE LOGGED  IN USER
+    const user = await UserModel.findOne({ _id })
 
-    //* FIND THE USER ORDER WITH HIS ID
-    const userOrder = await OrderModel.findOne({ orderBy: _id })
+    //* FIND THE USER ORDER
+    const findOrder = await OrderModel.findOne({ orderBy: user._id })
 
-    //* IF NO ORDER IS FOUND ...
-    if (!userOrder) return res.status(404).json({ message: 'no order found' })
+    //* IF ORDER ISN'T FOUND
+    if (!findOrder) return res.status(404).json({ message: 'no orders placed' })
 
-    //* SEND THE ORDER TO THE CLIENT
-    res.status(200).json({ orders: userOrder })
+    //* SEND THE ORDERS TO THE USER
+    res.status(200).json({ orders: findOrder })
   } catch (error) {
     console.log({ error })
   }
