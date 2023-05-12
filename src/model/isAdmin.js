@@ -1,13 +1,14 @@
-//* IS ADMIN MODEL
+//* ADMIN MODEL
 const mongoose = require('mongoose')
 const Schema = mongoose.Schema
 const bcrypt = require('bcrypt')
 const crypto = require('crypto')
 const mongoosePaginate = require('mongoose-paginate-v2')
 
-const IsAdminSchema = new Schema(
+//* CREATING ADMIN SCHEMA
+const AdminSchema = new Schema(
   {
-    fullName: {
+    adminName: {
       type: String,
       required: true,
     },
@@ -15,50 +16,46 @@ const IsAdminSchema = new Schema(
       type: String,
       required: true,
       unique: true,
-      lowercase: true,
     },
     password: {
       type: String,
       required: true,
-      min: 6,
-      max: 20,
     },
     mobile: {
       type: String,
       required: true,
       unique: true,
+      min: 11,
     },
     country: {
       type: String,
-      required: true,
     },
-    city: {
-      type: String,
-      required: true,
-    },
-    zipCode: {
-      type: String,
-      required: true,
-    },
-    street: {
-      type: String,
-      required: true,
-    },
-    homeAddress: {
+    address: {
       type: String,
       required: true,
     },
     role: {
       type: String,
-      default: 'Admin',
-    },
-    active: {
-      type: Boolean,
-      default: true,
+      default: 'admin',
     },
     isBlocked: {
       type: Boolean,
       default: false,
+    },
+    cart: [
+      {
+        type: String,
+      },
+    ],
+    wishList: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+      },
+    ],
+    active: {
+      type: Boolean,
+      default: true,
     },
     passwordChangedAT: {
       type: Date,
@@ -73,19 +70,20 @@ const IsAdminSchema = new Schema(
   { timestamps: true }
 )
 
-//* HASH PASSWORD BEFORE SAVING TO THE DATABASE
-IsAdminSchema.pre('save', async function (next) {
-  //* CHECKING IF THE PASSWORD ISN'T MODIFIED
+//* HASH A ADMIN PASSWORD BEFORE SAVING THE ADMIN
+AdminSchema.pre('save', async function (next) {
+  //* CHECKING IF THE PASSWORD IS NOT MODIFIED
   if (!this.isModified('password')) {
-    return next()
+    next()
   }
+  //* GENERATE SALT
   const salt = await bcrypt.genSalt()
   this.password = await bcrypt.hash(this.password, salt)
   next()
 })
 
-//* COMPARE OLD PASSWORD BEFORE CHANGE
-IsAdminSchema.methods.comparePassword = async function (password) {
+//* COMPARE OLD PASSWORD BEFORE CHANGING
+AdminSchema.methods.comparePassword = async function (password) {
   try {
     return await bcrypt.compare(password, this.password)
   } catch (error) {
@@ -94,8 +92,8 @@ IsAdminSchema.methods.comparePassword = async function (password) {
   }
 }
 
-//* CREATE PASSWORD RESET TOKEN
-IsAdminSchema.methods.createPasswordResetToken = async function () {
+//* PASSWORD RESET TOKEN
+AdminSchema.methods.createPasswordResetToken = async function () {
   const resetToken = crypto.randomBytes(32).toString('hex')
   this.passwordResetToken = crypto
     .createHash('sha256')
@@ -107,10 +105,10 @@ IsAdminSchema.methods.createPasswordResetToken = async function () {
 }
 
 //* PLUGIN MONGOOSE PAGINATE
-IsAdminSchema.plugin(mongoosePaginate)
+AdminSchema.plugin(mongoosePaginate)
 
 //* CREATE A MODEL
-const IsAdminModel = mongoose.model('Admin', IsAdminSchema)
+const AdminModel = mongoose.model('Admin', AdminSchema)
 
 //* EXPORT THE MODEL
-module.exports = IsAdminModel
+module.exports = AdminModel
