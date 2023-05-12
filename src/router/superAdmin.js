@@ -1,46 +1,89 @@
 //* SUPER ADMIN ROUTER
 const router = require('express').Router()
 const controller = require('../controllers/superAdmin')
-const { AdminAuthToken } = require('../middleware/AdminAuthentication')
 const { SuperAdminAuth } = require('../middleware/SuperAdminAuthentication')
 
-//* SUPER ADMIN ROUTES
+//* SUPER ADMIN URL ROUTE
 router.get(
   '/',
   SuperAdminAuth,
-  controller.getSuperAdminsOrSearchForSuperAdminsUsingEmail
+  controller.get_All_SuperAdmins_And_Also_Search_SuperAdmins_With_Emails
 )
 
-router.get('/counts', SuperAdminAuth, controller.get_SuperAdmins_Counts)
+router.get('/active', SuperAdminAuth, controller.getActiveSuperAdmins)
 
-router.get('/active/on', SuperAdminAuth, controller.get_SuperAdmins_Active)
+router.get('/offline', SuperAdminAuth, controller.getOfflineSuperAdmins)
 
-router.get('/active/off', SuperAdminAuth, controller.get_SuperAdmins_non_Active)
+router.get(
+  '/active/counts',
+  SuperAdminAuth,
+  controller.getActiveSuperAdminsCounts
+)
 
-router.post('/register', SuperAdminAuth, controller.register_SuperAdmins)
+router.get(
+  '/offline/counts',
+  SuperAdminAuth,
+  controller.getOfflineSuperAdminsCounts
+)
 
-router.put('/changePassword', AdminAuthToken, controller.changePassword)
+router.get('/getOrder', SuperAdminAuth, controller.getOrder)
 
-router.put('/login', controller.login_SuperAdmin)
+router.get('/getCart', SuperAdminAuth, controller.getSuperAdminCart)
 
-router.post('/logout', SuperAdminAuth, controller.logOut_SuperAdmin)
+router.get('/counts', SuperAdminAuth, controller.get_superAdmins_counts)
 
-router.get('/:superAdminId', SuperAdminAuth, controller.get_SuperAdmins_By_Id)
+router.post('/addToWishList', SuperAdminAuth, controller.addToWishList)
 
-router.put('/:superAdminId', SuperAdminAuth, controller.update_SuperAdmins)
-
-router.delete('/:superAdminId', SuperAdminAuth, controller.delete_SuperAdmins)
-
-router.post('/forgottenPassword', controller.forgottenPassword)
-
-router.put('/resetToken/:tokenId', controller.resetToken)
-
-router.put('/block/:superAdminId', SuperAdminAuth, controller.blockSuperAdmins)
+router.get('/wishList', SuperAdminAuth, controller.getWishList)
 
 router.put(
-  '/unblock/:superAdminId',
+  '/changePassword',
   SuperAdminAuth,
-  controller.unBlockSuperAdmin
+  controller.changeSuperAdminPassword
 )
+
+router.get('/:superAdminId', SuperAdminAuth, controller.get_superAdmins_by_id)
+
+router.put('/updateSuperAdmin', SuperAdminAuth, controller.updateSuperAdmin)
+
+router.post('/login', controller.post_login)
+
+router.post('/register', controller.post_register)
+
+router.post('/applyDiscount', SuperAdminAuth, controller.applyDiscount)
+
+router.post('/logout', SuperAdminAuth, controller.post_logOut)
+
+router.put(
+  '/:superAdminId',
+  SuperAdminAuth,
+  controller.put_update_superAdmin_By_Id
+)
+
+router.put(
+  '/blockSuperAdmin/:superAdminId',
+  SuperAdminAuth,
+  controller.blockSuperAdminById
+)
+
+router.put(
+  '/unblockSuperAdmin/:superAdminId',
+  SuperAdminAuth,
+  controller.unBlockSuperAdminById
+)
+
+router.post('/forgotPassword', controller.forgottenPassword)
+
+router.delete('/emptyCart', SuperAdminAuth, controller.emptyCart)
+
+router.put('/resetToken/:token', controller.resetToken)
+
+router.delete('/:superAdminId', SuperAdminAuth, controller.delete_superAdmin)
+
+router.put('/add/Address', SuperAdminAuth, controller.add_Address)
+
+router.post('/addToCart', SuperAdminAuth, controller.addToCart)
+
+router.post('/createOrder', SuperAdminAuth, controller.createOrder)
 
 module.exports = router
