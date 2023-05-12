@@ -1,0 +1,42 @@
+//* E-SHOP APPLICATION
+const express = require('express')
+const bodyParser = require('body-parser')
+const morgan = require('morgan')
+const cookie = require('cookie-parser')
+const cors = require('cors')
+const helmet = require('helmet')
+
+const app = express()
+
+const Product_router = require('../router/product')
+const Category_router = require('../router/category')
+const User_router = require('../router/user')
+const Order_router = require('../router/order')
+const IsAdmin_router = require('../router/isAdmin')
+const Cart_router = require('../router/carts')
+const SuperAdmin_router = require('../router/superAdmin')
+const Brand_router = require('../router/brand')
+const Coupon_router = require('../router/coupon')
+const Color_router = require('../router/color')
+
+app.use(cors())
+app.options('*', cors())
+app.use(helmet())
+app.use(morgan('dev'))
+app.use(bodyParser.json())
+app.use(cookie())
+app.use('/api/eshop/product', Product_router)
+app.use('/api/eshop/category', Category_router)
+app.use('/api/eshop/user', User_router)
+app.use('/api/eshop/order', Order_router)
+app.use('/api/eshop/isAdmin', IsAdmin_router)
+app.use('/api/eshop/cart', Cart_router)
+// app.use('/api/eshop/superAdmin', SuperAdmin_router)
+app.use('/api/eshop/brand', Brand_router)
+app.use('/api/eshop/coupon', Coupon_router)
+app.use('/api/eshop/color', Color_router)
+app.get('/api/eshop/home', (req, res) => {
+  res.status(200).json('E-commerce Page')
+})
+
+module.exports = app
