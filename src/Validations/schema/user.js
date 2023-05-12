@@ -47,3 +47,14 @@ module.exports.resetAndChangePasswordValidation = (data) => {
 
   return schema.validate(data, { abortEarly: false })
 }
+
+//* FORGOTTEN PASSWORD EMAIL VALIDATION
+module.exports.forgottenPassword = (data) => {
+  const schema = joi
+    .object({
+      email: joi.string().email().required(),
+    })
+    .options({ stripUnknown: true })
+
+  return schema.validate(data, { abortEarly: false })
+}
