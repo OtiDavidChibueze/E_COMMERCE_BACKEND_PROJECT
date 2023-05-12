@@ -5,7 +5,7 @@ const controller = require('../controllers/coupon')
 const { AdminAuthToken } = require('../middleware/AdminAuthentication')
 
 //*  ROUTES
-router.get('/', controller.get)
+router.get('/', AdminAuthToken, controller.get)
 
 router.get('/counts', AdminAuthToken, controller.getCouponCounts)
 
