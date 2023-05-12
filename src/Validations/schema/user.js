@@ -13,6 +13,7 @@ module.exports.userRegisterSchemaValidation = (data) => {
         .regex(/^0[0-9]{10}$/)
         .required(),
       country: joi.string().required().min(3),
+      address: joi.string().required(),
     })
     .options({ stripUnknown: true })
 
@@ -29,6 +30,7 @@ module.exports.userUpdateSchemaValidation = (data) => {
         .string()
         .regex(/^0[0-9]{10}$/)
         .required(),
+      address: joi.string().required(),
     })
     .options({ stripUnknown: true })
 
