@@ -15,6 +15,7 @@ const {
   userRegisterSchemaValidation,
   userUpdateSchemaValidation,
   resetAndChangePasswordValidation,
+  forgottenPassword,
 } = require('../Validations/schema/user')
 
 const keys = require('../config/keys')
@@ -442,6 +443,10 @@ module.exports.changeUserPassword = async (req, res) => {
 
 //* FORGOTTEN PASSWORD
 module.exports.forgottenPassword = async (req, res) => {
+  //* VALIDATING THE EMAIL IN THE BODY
+  const { error } = forgottenPassword(req.body)
+  if (error) return res.status(400).json(error.details[0].message)
+
   //* GETTING THE DETAILS IN THE BODY
   const { email } = req.body
 
