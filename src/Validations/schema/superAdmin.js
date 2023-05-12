@@ -1,65 +1,60 @@
 //* SUPER ADMIN SCHEMA VALIDATION
 const joi = require('joi')
 
-const superAdminRegisterSchemaValidation = (data) => {
-  const Schema = joi
-    .object({
-      fullName: joi.string().required().min(3).max(20),
-      email: joi.string().required().email().lowercase(),
-      password: joi
-        .string()
-        .required()
-        .min(6)
-        .max(20)
-        .options(new RegExp('^[a-zA-F0-9{6,30}$]')),
-      phone: joi.string().required().options(new RegExp('^[0-9]$')),
-      country: joi.string().required(),
-    })
-    .options({ stripUnknown: true })
-
-  return Schema.validate(data, { abortEarly: false })
-}
-
-module.exports.superAdminRegisterSchemaValidation =
-  superAdminRegisterSchemaValidation
-
-//* SUPER ADMIN LOGIN SCHEMA VALIDATION
-
-const superAdminLoginSchemaValidation = (data) => {
-  const Schema = joi
+//* VALIDATION SCHEMA
+module.exports.superAdminRegisterSchemaValidation = (data) => {
+  const superAdminSchema = joi
     .object({
       email: joi.string().required().email().lowercase(),
-      password: joi
+      password: joi.string().min(6).max(20).required(),
+      superAdminName: joi.string().min(3).max(20).required(),
+      mobile: joi
         .string()
-        .required()
-        .min(6)
-        .max(20)
-        .options(new RegExp('^[a-zA-F0-9{6,30}$]')),
+        .regex(/^0[0-9]{10}$/)
+        .required(),
+      country: joi.string().required().min(3),
+      address: joi.string().required(),
     })
     .options({ stripUnknown: true })
 
-  return Schema.validate(data, { abortEarly: false })
+  return superAdminSchema.validate(data, { abortEarly: false })
 }
 
-module.exports.superAdminLoginSchemaValidation = superAdminLoginSchemaValidation
-
-//* UPDATE SUPER ADMIN SCHEMA
-const updateSuperAdminSchemaValidation = (data) => {
-  const Schema = joi
+//* SUPER ADMIN UPDATE SCHEMA VALIDATION
+module.exports.superAdminUpdateSchemaValidation = (data) => {
+  const superAdminSchema = joi
     .object({
-      fullName: joi.string().required().min(3).max(20),
-      phone: joi
-        .string()
-        .required()
-        .options(new RegExp('^[0-9]$'))
-        .min(11)
-        .max(11),
+      superAdminName: joi.string().required().min(3).max(20),
       country: joi.string().required(),
+      mobile: joi
+        .string()
+        .regex(/^0[0-9]{10}$/)
+        .required(),
+      address: joi.string().required(),
     })
     .options({ stripUnknown: true })
 
-  return Schema.validate(data, { abortEarly: false })
+  return superAdminSchema.validate(data, { abortEarly: false })
 }
 
-module.exports.updateSuperAdminSchemaValidation =
-  updateSuperAdminSchemaValidation
+//* SUPER ADMIN PASSWORD RESET AND CHANGE PASSWORD VALIDATIONS
+module.exports.resetAndChangePasswordValidation = (data) => {
+  const schema = joi
+    .object({
+      newPassword: joi.string().min(6).max(20).required(),
+    })
+    .options({ stripUnknown: true })
+
+  return schema.validate(data, { abortEarly: false })
+}
+
+//* FORGOTTEN PASSWORD EMAIL VALIDATION
+module.exports.forgottenPassword = (data) => {
+  const schema = joi
+    .object({
+      email: joi.string().email().required(),
+    })
+    .options({ stripUnknown: true })
+
+  return schema.validate(data, { abortEarly: false })
+}
