@@ -5,7 +5,7 @@ const { productSchemaValidation } = require('../Validations/schema/product')
 const slugify = require('slugify')
 const UserModel = require('../model/user')
 const BrandModel = require('../model/brand')
-const cloudinaryUploads = require('../util/cloudinary')
+const { cloudinaryUploads, cloudinaryDelete } = require('../util/cloudinary')
 const fs = require('fs')
 
 //* PRODUCT END POINTS
@@ -95,20 +95,15 @@ module.exports.add_products = async (req, res) => {
     req.body.slug = slugify(req.body.title)
   }
 
+  const slugExists = await ProductModel.findOne({ slug: req.body.slug })
+  if (slugExists)
+    return res.status(400).json({ message: 'product slug already exists' })
+
   const brandExist = await BrandModel.findById({ _id: req.body.brand })
   if (!brandExist)
     return res.status(404).json({ message: 'no such brand with this id found' })
 
-  const { title, brand, price, countInStock, description, category } = req.body
-
-  const product = new ProductModel({
-    title,
-    brand,
-    price,
-    countInStock,
-    description,
-    category,
-  })
+  const product = new ProductModel(req.body)
 
   await product.save()
 
@@ -124,8 +119,8 @@ module.exports.add_products = async (req, res) => {
 //* UPDATE PRODUCT BY ID
 module.exports.edit_products = async (req, res) => {
   //* VALIDATING PRODUCT SCHEMA
-  // const { error } = productSchemaValidation(req.body)
-  // if (error) return res.status(422).send(error.details[0].message)
+  const { error } = productSchemaValidation(req.body)
+  if (error) return res.status(422).send(error.details[0].message)
 
   //* CHECKING IF IT'S A VALID ID
   if (!mongoose.isValidObjectId(req.params.id))
@@ -365,8 +360,6 @@ module.exports.rating = async (req, res) => {
 module.exports.delete_products = async (req, res) => {
   //* GET THE PRODUCT ID IN THE PARAMS
 
-  const { productId } = req.params
-
   //* DELETE THE PRODUCT WITH THE GIVEN ID
   const delProduct = await ProductModel.findByIdAndDelete(productId)
 
@@ -380,7 +373,6 @@ module.exports.delete_products = async (req, res) => {
 //* UPLOAD IMAGE BY PRODUCT ID
 module.exports.uploadImages = async (req, res, next) => {
   //* GET THE PRODUCT ID
-  const { productId } = req.params
 
   try {
     const uploader = (path) => cloudinaryUploads(path, 'images')
@@ -394,19 +386,29 @@ module.exports.uploadImages = async (req, res, next) => {
       fs.unlinkSync(path)
     }
 
-    const findProduct = await ProductModel.findByIdAndUpdate(
-      productId,
-      {
-        images: urls.map((file) => {
-          return file
-        }),
-      },
-      {
-        new: true,
-      }
-    )
+    const images = urls.map((file) => {
+      return file
+    })
 
-    res.status(200).json({ message: 'image uploaded', product: findProduct })
+    res.status(200).json({ message: 'image uploaded', images })
+  } catch (error) {
+    console.log(error)
+  }
+}
+
+//* DELETE IMAGE BY PUBLIC ID
+module.exports.deleteImages = async (req, res) => {
+  //* ONLY ADMINS CAN  DELETE PHOTO
+  if (req.user.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GET THE PUBLIC ID
+  const { publicId } = req.params
+
+  try {
+    const deleted = cloudinaryDelete(publicId, 'images')
+
+    res.status(200).json({ message: 'image deleted' })
   } catch (error) {
     console.log(error)
   }
