@@ -15,6 +15,7 @@ const ProductSchema = new Schema(
       type: String,
       unique: true,
       lowercase: true,
+      required: true,
     },
     brand: {
       type: String,
@@ -29,9 +30,11 @@ const ProductSchema = new Schema(
     countInStock: {
       type: Number,
       required: true,
+      default: 0,
     },
     sold: {
       type: Number,
+      min: 0,
       default: 0,
     },
     description: {
@@ -40,6 +43,8 @@ const ProductSchema = new Schema(
       trim: true,
     },
     images: [],
+    color: [],
+    tags: [],
     category: {
       type: String,
       ref: 'Category',
