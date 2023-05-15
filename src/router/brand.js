@@ -2,19 +2,19 @@
 const express = require('express')
 const router = express.Router()
 const controller = require('../controllers/brand')
-const { AdminAuthToken } = require('../middleware/AdminAuthentication')
+const { authorization } = require('../middleware/authorization')
 
 //*  ROUTES
 router.get('/', controller.get)
 
-router.get('/counts', AdminAuthToken, controller.getBrandCounts)
+router.get('/counts', authorization, controller.getBrandCounts)
 
-router.post('/create', AdminAuthToken, controller.post)
+router.post('/create', authorization, controller.post)
 
-router.get('/:id', AdminAuthToken, controller.getBrandById)
+router.get('/:id', authorization, controller.getBrandById)
 
-router.put('/:id', AdminAuthToken, controller.put)
+router.put('/:id', authorization, controller.put)
 
-router.delete('/:id', AdminAuthToken, controller.delete)
+router.delete('/:id', authorization, controller.delete)
 
 module.exports = router
