@@ -4,7 +4,7 @@ const ProductModel = require('../model/product')
 const CartModel = require('../model/cart')
 
 const jwt = require('jsonwebtoken')
-const { maxAge, createToken } = require('../jwt/superAdminToken')
+const { maxAge, createToken } = require('../jwt/createToken')
 
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
@@ -28,11 +28,20 @@ const OrderModel = require('../model/order')
 //* GET ALL SUPER ADMINS
 module.exports.get_All_SuperAdmins_And_Also_Search_SuperAdmins_With_Emails =
   async (req, res) => {
+    //* ONLY ADMINS CAN GET ALL SUPER ADMINS
+    if (req?.superAdmin?.role !== 'superAdmin')
+      return res.status(401).json({ message: 'unauthorized' })
+
     try {
       //* QUERY OPTIONS
       const options = {
         page: req.query.page ? parseInt(req.query.page) : 1,
         limit: req.query.limit ? parseInt(req.query.limit) : 5,
+        select: '-password',
+        populate: {
+          path: 'wishList',
+          select: 'title price -_id countInStock',
+        },
       }
 
       //*  LOOK FOR SUPER ADMINS USING THEIR EMAIL OR GET ALL SUPER ADMINS
@@ -62,6 +71,10 @@ module.exports.get_All_SuperAdmins_And_Also_Search_SuperAdmins_With_Emails =
 
 //* GET SUPER ADMIN BY ID
 module.exports.get_superAdmins_by_id = async (req, res) => {
+  //* ONLY ADMINS CAN GET ALL SUPER ADMINS BY ID
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* GETTING THE DETAILS IN THE PARAMS
     const { superAdminId } = req.params
@@ -71,9 +84,9 @@ module.exports.get_superAdmins_by_id = async (req, res) => {
       return res.status(400).json({ error: 'invalid superAdmin id' })
 
     //* GETTING THE SUPER ADMIN
-    const getSuperAdmin = await SuperAdminModel.findById(superAdminId).select(
-      '-password -_id -createdAt -updatedAt -__v'
-    )
+    const getSuperAdmin = await SuperAdminModel.findById(superAdminId)
+      .select('-password')
+      .populate({ path: 'wishList', select: 'title price -_id countInStock' })
 
     //* IF SUPER ADMIN ISN'T FOUND
     if (!getSuperAdmin) {
@@ -88,6 +101,10 @@ module.exports.get_superAdmins_by_id = async (req, res) => {
 
 //* GET SUPER ADMIN COUNTS
 module.exports.get_superAdmins_counts = async (req, res) => {
+  //* ONLY ADMINS CAN GET ALL SUPER ADMINS COUNTS
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* GET COUNTS
     const counts = await SuperAdminModel.countDocuments()
@@ -104,6 +121,10 @@ module.exports.get_superAdmins_counts = async (req, res) => {
 
 //* REGISTER SUPER ADMIN
 module.exports.post_register = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN REGISTER
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING SUPER ADMIN REGISTER SCHEMA
   const { error } = superAdminRegisterSchemaValidation(req.body)
   if (error) return res.status(422).json(error.details[0].message)
@@ -113,6 +134,13 @@ module.exports.post_register = async (req, res) => {
     const { email, superAdminName, password, mobile, country, address } =
       req.body
 
+    //* CHECKING IF THE MOBILE NUMBER IS ALREADY EXISTS
+    const mobileExists = await SuperAdminModel.findOne({ mobile })
+
+    //* IF MOBILE EXISTS
+    if (mobileExists)
+      return res.status(400).json({ message: 'mobile number already taken' })
+
     //* CHECKING IF THE SUPER ADMIN EXIST BEFORE REGISTRATION
     const newSuperAdminExist = await SuperAdminModel.findOne({ email })
 
@@ -121,13 +149,6 @@ module.exports.post_register = async (req, res) => {
       return res
         .status(406)
         .json({ message: 'not accepted , superAdmin already exist' })
-
-    //* CHECKING IF THE MOBILE NUMBER IS ALREADY EXISTS
-    const mobileExists = await SuperAdminModel.findOne({ mobile })
-
-    //* IF MOBILE EXISTS
-    if (mobileExists)
-      return res.status(400).json({ message: 'mobile number already taken' })
 
     //* IF SUPER ADMIN DOESN'T EXITS REGISTER A SUPER ADMIN
     const newSuperAdmin = new SuperAdminModel({
@@ -151,7 +172,7 @@ module.exports.post_register = async (req, res) => {
       })
     } else {
       //* SENDING THE SUPER ADMINS TOKEN IN A COOKIE AND A EXPIRATION DATE
-      const token = createToken(newSuperAdmin._id)
+      const token = createToken(newSuperAdmin.id)
       res.cookie('superAdmin', token, { maxAge: maxAge * 1000, httpOnly: true })
       //* SEND A SUCCESS RESPONSE TO THE CLIENT AND THE SUPER ADMIN IS LOGGED IN IMMEDIATELY
       return res.status(201).json({ registered: newSuperAdmin })
@@ -163,6 +184,10 @@ module.exports.post_register = async (req, res) => {
 
 //* UPDATE SUPER ADMIN
 module.exports.updateSuperAdmin = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN UPDATE THEIR INFO
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = superAdminUpdateSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
@@ -202,30 +227,47 @@ module.exports.updateSuperAdmin = async (req, res) => {
 
 //* UPDATE SUPER ADMIN BY ID
 module.exports.put_update_superAdmin_By_Id = async (req, res) => {
+  //* ONLY ADMINS CAN UPDATE SUPER ADMIN BY ID
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = superAdminUpdateSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
 
+  //* GETTING THE SUPER ADMIN ID IN THE PARAMS
+  const { superAdminId } = req.params
+
+  //* CHECKING IF THE SUPER ADMIN ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.superAdminId))
+    return res.status(400).json({ error: 'invalid superAdmin id' })
+
+  //* GETTING THE DETAILS IN THE BODY
+  const { superAdminName, country, mobile, address } = req.body
+
+  //* CHECKING IF MOBILE NUMBER EXIST BEFORE UPDATING....
+  const mobileExists = await SuperAdminModel.findOne({ mobile })
+
+  //* IF EXISTS ....
+  if (mobileExists)
+    return res
+      .status(406)
+      .json({ status: 'not accepted', message: 'mobile already exists' })
+
   try {
-    //* GETTING THE SUPER ADMIN ID IN THE PARAMS
-    const { superAdminId } = req.params
-
-    //* VALIDATING SCHEMA
-    const { error } = superAdminUpdateSchemaValidation(req.body)
-    if (error) return res.status(422).send(error.details[0].message)
-
-    //* CHECKING IF THE SUPER ADMIN ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.superAdminId))
-      return res.status(400).json({ error: 'invalid superAdmin id' })
-
     //* UPDATE THE SUPER ADMIN
     const updateSuperAdmin = await SuperAdminModel.findByIdAndUpdate(
       superAdminId,
-      req.body,
+      {
+        superAdminName: superAdminName,
+        country: country,
+        mobile: mobile,
+        address: address,
+      },
       {
         new: true,
       }
-    )
+    ).select('-password')
 
     //* IF ERROR OCCURS DURING UPDATE
     if (!updateSuperAdmin) {
@@ -267,25 +309,27 @@ module.exports.post_login = async (req, res) => {
           new: true,
         }
       )
-
       //* CREATE A LOGIN TOKEN FOR THE SUPER ADMIN
       const Token = jwt.sign(
         {
           superAdminId: superAdmin.id,
+          role: superAdmin.role,
         },
-        keys.SUPER_ADMIN_SECRET,
+        keys.SECRET,
         {
           expiresIn: maxAge,
         }
       )
       //* STORE THE TOKEN IN A COOKIE
-      res.cookie('superAdmin', Token, {
+      res.cookie('user', Token, {
         maxAge: maxAge * 1000,
         httpOnly: true,
       })
 
       //* SEND A SUCCESS RESPONSE TO THE CLIENT
-      res.status(200).json({ logged_in: superAdmin })
+      res
+        .status(200)
+        .json({ logged_in: superAdmin.email, message: 'access granted' })
     } else {
       //* SEND INCORRECT PASSWORD TO THE CLIENT
       res.status(406).json({
@@ -294,16 +338,21 @@ module.exports.post_login = async (req, res) => {
       })
     }
   } catch (error) {
-    res.status(400).json({ status: 'bad request', error: error })
+    console.log(error)
+    res.status(400).json({ status: 'bad request' })
   }
 }
 
 //* LOG OUT SUPER ADMIN
 module.exports.post_logOut = async (req, res) => {
-  //* ONLY LOGGED IN SUPER ADMIN CAN LOGOUT
+  //* ONLY LOGGED IN SUPER ADMIN CAN LOG OUT
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING THE ID OF THE LOGGED IN SUPER ADMIN
   const loggedInSuperAdminId = req.superAdmin._id
 
-  //* FIND THE ADMIN AND UPDATE THE ACTIVE STATUS
+  //* FIND THE SUPER ADMIN AND UPDATE THE ACTIVE STATUS
   const findSuperAdmin = await SuperAdminModel.findByIdAndUpdate(
     loggedInSuperAdminId,
     {
@@ -315,7 +364,7 @@ module.exports.post_logOut = async (req, res) => {
   )
 
   //* REMOVE THE TOKEN FROM THE COOKIE
-  res.cookie('superAdmin', '', {
+  res.cookie('user', '', {
     maxAge: 1,
     httpOnly: true,
   })
@@ -330,17 +379,21 @@ module.exports.post_logOut = async (req, res) => {
 
 //* BLOCK A SUPER ADMIN
 module.exports.blockSuperAdminById = async (req, res) => {
+  //* ONLY ADMINS CAN BLOCK SUPER ADMIN
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* CHECKING IF ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.superAdminId))
+    return res.status(404).json({
+      status: 'not found',
+      message: 'no superAdmin with such id found',
+    })
+
   //* GETTING THE SUPER ADMIN ID IN THE PARAMS
   const { superAdminId } = req.params
 
   try {
-    //* CHECKING IF ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.superAdminId))
-      return res.status(404).json({
-        status: 'not found',
-        message: 'no superAdmin with such id found',
-      })
-
     //* IF SUPER ADMIN WITH ID EXISTS ....
     const blockSuperAdmin = await SuperAdminModel.findByIdAndUpdate(
       superAdminId,
@@ -367,17 +420,21 @@ module.exports.blockSuperAdminById = async (req, res) => {
 
 //* UNBLOCK SUPER ADMIN
 module.exports.unBlockSuperAdminById = async (req, res) => {
+  //* ONLY ADMINS CAN UNBLOCK
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* CHECKING IF ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.superAdminId))
+    return res.status(404).json({
+      status: 'not found',
+      message: 'no such superAdmin with that id  found',
+    })
+
   //* GETTING THE SUPER ADMIN ID THE PARAMS
   const { superAdminId } = req.params
 
   try {
-    //* CHECKING IF ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.superAdminId))
-      return res.status(404).json({
-        status: 'not found',
-        message: 'no such superAdmin with that id  found',
-      })
-
     //* IF SUPER ADMIN WITH SUCH ID EXIST .....
     const blockSuperAdmin = await SuperAdminModel.findByIdAndUpdate(
       superAdminId,
@@ -403,6 +460,10 @@ module.exports.unBlockSuperAdminById = async (req, res) => {
 
 //* CHANGE SUPER ADMIN PASSWORD
 module.exports.changeSuperAdminPassword = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN CHANGE PASSWORD
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE SUPER ADMINS DETAILS IN THE BODY
   const { error } = resetAndChangePasswordValidation(req.body)
   //* IF ERROR OCCURS
@@ -543,6 +604,10 @@ module.exports.resetToken = async (req, res) => {
 
 //* DELETE SUPER ADMIN BY ID
 module.exports.delete_superAdmin = async (req, res) => {
+  //* ONLY ADMINS CAN DELETE SUPER ADMIN BY ID
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* CHECKING IF ITS A VALID SUPER ADMIN ID
   if (!mongoose.isValidObjectId(req.params.superAdminId))
     return res.status(400).json({ error: 'invalid superAdmin id' })
@@ -572,6 +637,10 @@ module.exports.delete_superAdmin = async (req, res) => {
 
 //* ADD PRODUCT TO WISHLIST
 module.exports.addToWishList = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN ADD PRODUCT TO WISHLIST
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* ACCESSING THE DETAILS IN THE BODY
   const { productId } = req.body
 
@@ -618,14 +687,23 @@ module.exports.addToWishList = async (req, res) => {
 
 //* GET SUPER ADMIN WISHLIST
 module.exports.getWishList = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMIN CAN GET THEIR WISHLIST
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
   //* GETTING THE LOGGED IN SUPER ADMIN ID
   const loggedInSuperAdminId = req.superAdmin._id
 
   try {
     //* FIND THE SUPER ADMIN WITH THE ID
-    const superAdmin = await SuperAdminModel.findById(
-      loggedInSuperAdminId
-    ).populate('wishList')
+    const superAdmin = await SuperAdminModel.findById(loggedInSuperAdminId)
+      .populate({
+        path: 'wishList',
+        populate: { path: 'category', select: 'title -_id' },
+      })
+      .populate({
+        path: 'wishList',
+        populate: { path: 'brand', select: 'title -_id' },
+      })
 
     //* IF SUPER ADMIN EXISTS
     if (!superAdmin)
@@ -640,6 +718,10 @@ module.exports.getWishList = async (req, res) => {
 
 //* ADD ADDRESS
 module.exports.add_Address = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMIN CAN ADD ADDRESS
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GET THE LOGGED IN SUPER ADMIN ID
   const loggedInSuperAdminId = req.superAdmin._id
 
@@ -677,6 +759,10 @@ module.exports.add_Address = async (req, res) => {
 
 //* ADD TO CART
 module.exports.addToCart = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMIN CAN ADD TO CART
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE DETAILS IN THE BODY
   const { cart } = req.body
 
@@ -735,11 +821,11 @@ module.exports.addToCart = async (req, res) => {
     }
 
     //* CREATE A NEW CART
-    const newCart = new CartModel({
+    const newCart = await new CartModel({
       products,
       CartTotal,
       orderBy: superAdmin._id,
-    })
+    }).populate({ path: 'products.product', select: 'title' })
 
     //* SAVE THE CHANGES
     await newCart.save()
@@ -753,6 +839,10 @@ module.exports.addToCart = async (req, res) => {
 
 //* GET SUPER ADMIN CART
 module.exports.getSuperAdminCart = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMIN CAN GET THEIR CART LIST
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //*  GET THE LOGGED IN SUPER ADMIN ID
   const { _id } = req.superAdmin
 
@@ -779,6 +869,9 @@ module.exports.getSuperAdminCart = async (req, res) => {
 
 //* EMPTY CART
 module.exports.emptyCart = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN LOG OUT
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
   //* GETTING THE LOGGED IN SUPER ADMIN ID
   const { _id } = req.superAdmin
 
@@ -801,6 +894,10 @@ module.exports.emptyCart = async (req, res) => {
 
 //* APPLY DISCOUNT TO CART
 module.exports.applyDiscount = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN APPLY DISCOUNT TO CART
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE LOGGED IN SUPER ADMIN
   const { _id } = req.superAdmin
 
@@ -845,6 +942,10 @@ module.exports.applyDiscount = async (req, res) => {
 
 //* CREATE ORDER FOR ITEMS IN THE CART
 module.exports.createOrder = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMIN CAN CREATE ORDER
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE LOGGED IN SUPER ADMIN  ID
   const { _id } = req.superAdmin
 
@@ -909,6 +1010,10 @@ module.exports.createOrder = async (req, res) => {
 
 //* GET ORDER
 module.exports.getOrder = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMIN CAN GET THEIR ORDER LIST
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING LOGGED IN SUPER ADMIN
   const { _id } = req.superAdmin
 
@@ -918,6 +1023,11 @@ module.exports.getOrder = async (req, res) => {
 
     //* FIND THE SUPER ADMIN ORDER
     const findOrder = await OrderModel.findOne({ orderBy: superAdmin._id })
+      .populate({
+        path: 'products.product',
+        select: ' -_id title count',
+      })
+      .populate({ path: 'orderBy', select: 'superAdminName' })
 
     //* IF ORDER ISN'T FOUND
     if (!findOrder) return res.status(404).json({ message: 'no orders placed' })
@@ -929,58 +1039,34 @@ module.exports.getOrder = async (req, res) => {
   }
 }
 
-//* GET ACTIVE SUPER ADMINS
-module.exports.getActiveSuperAdmins = async (req, res) => {
-  //* GETTING ALL ACTIVE SUPER ADMINS
-  const superAdmins = await SuperAdminModel.find({ active: true }).select(
-    'email isBlocked mobile country active'
-  )
-
-  //* IF NO ACTIVE SUPER ADMINS ....
-  if (!superAdmins)
-    return res.status(404).json({ offline_Super_Admins: 'no active admins' })
-
-  //* SEND A SUCCESS RESPONSE
-  res.status(200).json({ active_Super_Admins: superAdmins })
-}
-
-//* GET OFFLINE SUPER ADMINS
-module.exports.getOfflineSuperAdmins = async (req, res) => {
-  //* GETTING ALL OFFLINE SUPER ADMINS
-  const Admins = await SuperAdminModel.find({ active: false }).select(
-    'email isBlocked mobile country active'
-  )
-
-  //* IF NO OFFLINE SUPER ADMINS
-  if (!Admins)
-    return res.status(404).json({ offline_Super_Admins: 'no offline admins' })
-
-  //* SEND A SUCCESS RESPONSE
-  res.status(200).json({ offline_Super_Admins: Admins })
-}
-
-//* GET ACTIVE SUPER ADMINS COUNTS
+//* GET ACTIVE  SUPER ADMINS COUNTS
 module.exports.getActiveSuperAdminsCounts = async (req, res) => {
-  //* GETTING ALL ACTIVE SUPER ADMINS COUNTS
+  //* ONLY LOGGED IN ADMINS CAN GET ALL ACTIVE SUPER ADMINS COUNTS
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING ALL ACTIVE SUPER ADMIN COUNTS
   const activeCount = await SuperAdminModel.countDocuments({ active: true })
 
-  //* IF NO ACTIVE SUPER ADMINS....
-  if (!activeCount) return res.status(404).json({ active_Super_Admins: 0 })
+  //* IF NO ACTIVE ADMINS....
+  if (!activeCount) return res.status(404).json({ active_Admins: 0 })
 
   //* SEND A SUCCESS RESPONSE
-  res.status(200).json({ active_Super_Admins: activeCount })
+  res.status(200).json({ active_SuperAdmins: activeCount })
 }
 
-//* GET OFFLINE SUPER ADMINS COUNTS
+//* GET OFFLINE  SUPER ADMINS COUNTS
 module.exports.getOfflineSuperAdminsCounts = async (req, res) => {
-  //* GETTING ALL OFFLINE SUPER ADMINS COUNTS
-  const offlineCount = await SuperAdminModel.countDocuments({
-    active: false,
-  })
+  //* ONLY LOGGED IN ADMINS CAN GET ALL OFFLINE SUPER ADMINS COUNTS
+  if (req?.superAdmin?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
 
-  //* IF NO OFFLINE SUPER ADMINS
+  //* GETTING ALL OFFLINE ADMINS
+  const offlineCount = await AdminModel.countDocuments({ active: false })
+
+  //* IF NO OFFLINE SUPER ADMIN
   if (!offlineCount) return res.status(404).json({ offline: 0 })
 
   //* SEND A SUCCESS RESPONSE
-  res.status(200).json({ offline_Super_Admins: offlineCount })
+  res.status(200).json({ offline_SuperAdmins: offlineCount })
 }
