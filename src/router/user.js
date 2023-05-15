@@ -15,7 +15,7 @@ router.get('/active/counts', authorization, controller.getActiveUsersCounts)
 
 router.get('/offline/counts', authorization, controller.getOfflineUsersCounts)
 
-router.get('/getOrder', authorization, controller.getOrder)
+router.get('/getOrder', authorization, controller.getOrderedItems)
 
 router.post('/addToWishList', authorization, controller.addToWishList)
 
@@ -57,6 +57,6 @@ router.put('/add/Address', authorization, controller.add_Address)
 
 router.post('/addToCart', authorization, controller.addToCart)
 
-router.post('/createOrder', authorization, controller.createOrder)
+router.post('/createOrder', authorization, controller.orderItemsInCart)
 
 module.exports = router
