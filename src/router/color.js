@@ -2,19 +2,19 @@
 const express = require('express')
 const router = express.Router()
 const controller = require('../controllers/color')
-const { AdminAuthToken } = require('../middleware/AdminAuthentication')
+const { authorization } = require('../middleware/authorization')
 
 //*  ROUTES
-router.get('/', AdminAuthToken, controller.get)
+router.get('/', authorization, controller.get)
 
-router.get('/counts', AdminAuthToken, controller.getColorsCounts)
+router.get('/counts', authorization, controller.getColorsCounts)
 
-router.post('/create', AdminAuthToken, controller.post)
+router.post('/create', authorization, controller.post)
 
-router.get('/:id', AdminAuthToken, controller.getColorById)
+router.get('/:id', authorization, controller.getColorById)
 
-router.put('/:id', AdminAuthToken, controller.put)
+router.put('/:id', authorization, controller.put)
 
-router.delete('/:id', AdminAuthToken, controller.delete)
+router.delete('/:id', authorization, controller.delete)
 
 module.exports = router
