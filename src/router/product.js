@@ -1,8 +1,7 @@
 //* PRODUCT ROUTER
 const router = require('express').Router()
 const controller = require('../controllers/product')
-const { UserAuthToken } = require('../middleware/UserAuthentication')
-const { AdminAuthToken } = require('../middleware/AdminAuthentication')
+const { authorization } = require('../middleware/authorization')
 const {
   multerConfig,
   productResizeImage,
@@ -11,36 +10,38 @@ const {
 //* PRODUCT URL ROUTES
 router.get('/', controller.get_products)
 
-router.get('/counts', AdminAuthToken, controller.get_products_count)
+router.get('/counts', authorization, controller.get_products_count)
 
-router.put('/likeProduct', UserAuthToken, controller.likeAProduct)
+router.put('/likeProduct', authorization, controller.likeAProduct)
 
-router.put('/rate', UserAuthToken, controller.rating)
+router.put('/rate', authorization, controller.rating)
 
 router.put(
-  '/upload/:productId',
+  '/upload',
   multerConfig.array('images', 10),
   productResizeImage,
-  AdminAuthToken,
+  authorization,
   controller.uploadImages
 )
 
-router.put('/disLikeProduct', UserAuthToken, controller.disLikeAProduct)
+router.put('/disLikeProduct', authorization, controller.disLikeAProduct)
 
-router.get('/featured', AdminAuthToken, controller.get_featured_products)
+router.get('/featured', authorization, controller.get_featured_products)
 
 router.get('/getProduct/:productId', controller.getProductsByProductId)
 
 router.get(
   '/featured/counts',
-  AdminAuthToken,
+  authorization,
   controller.get_featured_products_count
 )
 
-router.post('/create', AdminAuthToken, controller.add_products)
+router.post('/create', authorization, controller.add_products)
 
-router.put('/:id', AdminAuthToken, controller.edit_products)
+router.put('/:id', authorization, controller.edit_products)
 
-router.delete('/:productId', AdminAuthToken, controller.delete_products)
+router.delete('/:productId', authorization, controller.delete_products)
+
+router.delete('/delete/:publicId', authorization, controller.deleteImages)
 
 module.exports = router
