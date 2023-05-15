@@ -4,7 +4,7 @@ const ProductModel = require('../model/product')
 const CartModel = require('../model/cart')
 
 const jwt = require('jsonwebtoken')
-const { maxAge, createToken } = require('../jwt/userToken')
+const { maxAge, createToken } = require('../jwt/createToken')
 
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
@@ -30,11 +30,20 @@ module.exports.get_All_Users_And_Also_Search_Users_With_Emails = async (
   req,
   res
 ) => {
+  //* ONLY ADMINS CAN GET ALL USERS
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* QUERY OPTIONS
     const options = {
       page: req.query.page ? parseInt(req.query.page) : 1,
       limit: req.query.limit ? parseInt(req.query.limit) : 5,
+      select: '-password',
+      populate: {
+        path: 'wishList',
+        select: 'title price -_id countInStock',
+      },
     }
 
     //*  LOOK FOR USERS USING THEIR EMAIL OR GET ALL USERS
@@ -64,6 +73,10 @@ module.exports.get_All_Users_And_Also_Search_Users_With_Emails = async (
 
 //* GET USER BY ID
 module.exports.get_users_by_id = async (req, res) => {
+  //* ONLY ADMINS CAN GET ALL USERS BY ID
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* GETTING THE DETAILS IN THE PARAMS
     const { userId } = req.params
@@ -73,9 +86,9 @@ module.exports.get_users_by_id = async (req, res) => {
       return res.status(400).json({ error: 'invalid user id' })
 
     //* GETTING THE USER
-    const getUser = await UserModel.findById(userId).select(
-      '-password -_id -createdAt -updatedAt -__v'
-    )
+    const getUser = await UserModel.findById(userId)
+      .select('-password')
+      .populate({ path: 'wishList', select: 'title price -_id countInStock' })
 
     //* IF USER ISN'T FOUND
     if (!getUser) {
@@ -90,6 +103,10 @@ module.exports.get_users_by_id = async (req, res) => {
 
 //* GET USER COUNTS
 module.exports.get_users_counts = async (req, res) => {
+  //* ONLY ADMINS CAN GET ALL USERS COUNTS
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* GET COUNTS
     const counts = await UserModel.countDocuments()
@@ -152,8 +169,8 @@ module.exports.post_register = async (req, res) => {
       })
     } else {
       //* SENDING THE USERS TOKEN IN A COOKIE AND A EXPIRATION DATE
-      const token = createToken(newUser._id)
-      res.cookie('User', token, { maxAge: maxAge * 1000, httpOnly: true })
+      const token = createToken(newUser.id)
+      res.cookie('user', token, { maxAge: maxAge * 1000, httpOnly: true })
       //* SEND A SUCCESS RESPONSE TO THE CLIENT AND THE USER IS LOGGED IN IMMEDIATELY
       return res.status(201).json({ registered: newUser })
     }
@@ -164,6 +181,10 @@ module.exports.post_register = async (req, res) => {
 
 //* UPDATE USER
 module.exports.updateUser = async (req, res) => {
+  //* ONLY LOGGED IN USERS CAN UPDATE THEIR INFO
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = userUpdateSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
@@ -203,26 +224,47 @@ module.exports.updateUser = async (req, res) => {
 
 //* UPDATE USER BY ID
 module.exports.put_update_user_By_Id = async (req, res) => {
+  //* ONLY ADMINS CAN UPDATE USER BY ID
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = userUpdateSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
 
+  //* GETTING THE USER ID IN THE PARAMS
+  const { userId } = req.params
+
+  //* CHECKING IF THE USER ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.userId))
+    return res.status(400).json({ error: 'invalid user id' })
+
+  //* GETTING THE DETAILS IN THE BODY
+  const { userName, country, mobile, address } = req.body
+
+  //* CHECKING IF MOBILE NUMBER EXIST BEFORE UPDATING....
+  const mobileExists = await UserModel.findOne({ mobile })
+
+  //* IF EXISTS ....
+  if (mobileExists)
+    return res
+      .status(406)
+      .json({ status: 'not accepted', message: 'mobile already exists' })
+
   try {
-    //* GETTING THE USER ID IN THE PARAMS
-    const { userId } = req.params
-
-    //* VALIDATING SCHEMA
-    const { error } = userUpdateSchemaValidation(req.body)
-    if (error) return res.status(422).send(error.details[0].message)
-
-    //* CHECKING IF THE USER ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.userId))
-      return res.status(400).json({ error: 'invalid user id' })
-
     //* UPDATE THE USER
-    const updateUser = await UserModel.findByIdAndUpdate(userId, req.body, {
-      new: true,
-    })
+    const updateUser = await UserModel.findByIdAndUpdate(
+      userId,
+      {
+        userName: userName,
+        country: country,
+        mobile: mobile,
+        address: address,
+      },
+      {
+        new: true,
+      }
+    ).select('-password')
 
     //* IF ERROR OCCURS DURING UPDATE
     if (!updateUser) {
@@ -264,11 +306,11 @@ module.exports.post_login = async (req, res) => {
           new: true,
         }
       )
-
       //* CREATE A LOGIN TOKEN FOR THE USER
       const Token = jwt.sign(
         {
           userId: user.id,
+          role: user.role,
         },
         keys.SECRET,
         {
@@ -276,13 +318,13 @@ module.exports.post_login = async (req, res) => {
         }
       )
       //* STORE THE TOKEN IN A COOKIE
-      res.cookie('User', Token, {
+      res.cookie('user', Token, {
         maxAge: maxAge * 1000,
         httpOnly: true,
       })
 
       //* SEND A SUCCESS RESPONSE TO THE CLIENT
-      res.status(200).json({ logged_in: user })
+      res.status(200).json({ logged_in: user.email, message: 'access granted' })
     } else {
       //* SEND INCORRECT PASSWORD TO THE CLIENT
       res.status(406).json({
@@ -291,16 +333,21 @@ module.exports.post_login = async (req, res) => {
       })
     }
   } catch (error) {
-    res.status(400).json({ status: 'bad request', error: error })
+    console.log(error)
+    res.status(400).json({ status: 'bad request' })
   }
 }
 
 //* LOG OUT USER
 module.exports.post_logOut = async (req, res) => {
-  //* ONLY LOGGED IN USER CAN LOGOUT
+  //* ONLY LOGGED IN USER CAN LOG OUT
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING THE ID OF THE LOGGED IN USER
   const loggedInUserId = req.user._id
 
-  //* FIND THE ADMIN AND UPDATE THE ACTIVE STATUS
+  //* FIND THE USER AND UPDATE THE ACTIVE STATUS
   const findUser = await UserModel.findByIdAndUpdate(
     loggedInUserId,
     {
@@ -312,7 +359,7 @@ module.exports.post_logOut = async (req, res) => {
   )
 
   //* REMOVE THE TOKEN FROM THE COOKIE
-  res.cookie('User', '', {
+  res.cookie('user', '', {
     maxAge: 1,
     httpOnly: true,
   })
@@ -327,16 +374,20 @@ module.exports.post_logOut = async (req, res) => {
 
 //* BLOCK A USER
 module.exports.blockUserById = async (req, res) => {
+  //* ONLY ADMINS CAN BLOCK USER
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* CHECKING IF ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.userId))
+    return res
+      .status(404)
+      .json({ status: 'not found', message: 'no user with such id found' })
+
   //* GETTING THE USER ID IN THE PARAMS
   const { userId } = req.params
 
   try {
-    //* CHECKING IF ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.userId))
-      return res
-        .status(404)
-        .json({ status: 'not found', message: 'no user with such id found' })
-
     //* IF USER WITH ID EXISTS ....
     const blockUser = await UserModel.findByIdAndUpdate(
       userId,
@@ -363,17 +414,21 @@ module.exports.blockUserById = async (req, res) => {
 
 //* UNBLOCK USER
 module.exports.unBlockUserById = async (req, res) => {
+  //* ONLY ADMINS CAN UNBLOCK
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* CHECKING IF ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.userId))
+    return res.status(404).json({
+      status: 'not found',
+      message: 'no such user with that id  found',
+    })
+
   //* GETTING THE USER ID THE PARAMS
   const { userId } = req.params
 
   try {
-    //* CHECKING IF ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.userId))
-      return res.status(404).json({
-        status: 'not found',
-        message: 'no such user with that id  found',
-      })
-
     //* IF USER WITH SUCH ID EXIST .....
     const blockUser = await UserModel.findByIdAndUpdate(
       userId,
@@ -399,6 +454,10 @@ module.exports.unBlockUserById = async (req, res) => {
 
 //* CHANGE USER PASSWORD
 module.exports.changeUserPassword = async (req, res) => {
+  //* ONLY LOGGED IN USERS CAN CHANGE PASSWORD
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE USERS DETAILS IN THE BODY
   const { error } = resetAndChangePasswordValidation(req.body)
   //* IF ERROR OCCURS
@@ -537,6 +596,10 @@ module.exports.resetToken = async (req, res) => {
 
 //* DELETE USER BY ID
 module.exports.delete_user = async (req, res) => {
+  //* ONLY ADMINS CAN DELETE USER BY ID
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* CHECKING IF ITS A VALID USER ID
   if (!mongoose.isValidObjectId(req.params.userId))
     return res.status(400).json({ error: 'invalid user id' })
@@ -566,6 +629,10 @@ module.exports.delete_user = async (req, res) => {
 
 //* ADD PRODUCT TO WISHLIST
 module.exports.addToWishList = async (req, res) => {
+  //* ONLY LOGGED IN USERS CAN ADD PRODUCT TO WISHLIST
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* ACCESSING THE DETAILS IN THE BODY
   const { productId } = req.body
 
@@ -612,12 +679,23 @@ module.exports.addToWishList = async (req, res) => {
 
 //* GET USER WISHLIST
 module.exports.getWishList = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN GET THEIR WISHLIST
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
   //* GETTING THE LOGGED IN USER ID
   const loggedInUserId = req.user._id
 
   try {
     //* FIND THE USER WITH THE ID
-    const user = await UserModel.findById(loggedInUserId).populate('wishList')
+    const user = await UserModel.findById(loggedInUserId)
+      .populate({
+        path: 'wishList',
+        populate: { path: 'category', select: 'title -_id' },
+      })
+      .populate({
+        path: 'wishList',
+        populate: { path: 'brand', select: 'title -_id' },
+      })
 
     //* IF USER EXISTS
     if (!user) return res.status(404).json({ message: 'user is not found' })
@@ -631,6 +709,10 @@ module.exports.getWishList = async (req, res) => {
 
 //* ADD ADDRESS
 module.exports.add_Address = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN ADD ADDRESS
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GET THE LOGGED IN USER ID
   const loggedInUserId = req.user._id
 
@@ -668,6 +750,10 @@ module.exports.add_Address = async (req, res) => {
 
 //* ADD TO CART
 module.exports.addToCart = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN ADD TO CART
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE DETAILS IN THE BODY
   const { cart } = req.body
 
@@ -723,11 +809,11 @@ module.exports.addToCart = async (req, res) => {
     }
 
     //* CREATE A NEW CART
-    const newCart = new CartModel({
+    const newCart = await new CartModel({
       products,
       CartTotal,
       orderBy: user._id,
-    })
+    }).populate({ path: 'products.product', select: 'title' })
 
     //* SAVE THE CHANGES
     await newCart.save()
@@ -741,6 +827,10 @@ module.exports.addToCart = async (req, res) => {
 
 //* GET USER CART
 module.exports.getUserCart = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN GET THEIR CART LIST
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //*  GET THE LOGGED IN USER ID
   const { _id } = req.user
 
@@ -766,6 +856,9 @@ module.exports.getUserCart = async (req, res) => {
 
 //* EMPTY CART
 module.exports.emptyCart = async (req, res) => {
+  //* ONLY LOGGED IN USERS CAN LOG OUT
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
   //* GETTING THE LOGGED IN USER ID
   const { _id } = req.user
 
@@ -788,6 +881,10 @@ module.exports.emptyCart = async (req, res) => {
 
 //* APPLY DISCOUNT TO CART
 module.exports.applyDiscount = async (req, res) => {
+  //* ONLY LOGGED IN USERS CAN APPLY DISCOUNT TO CART
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE LOGGED IN USER
   const { _id } = req.user
 
@@ -832,6 +929,10 @@ module.exports.applyDiscount = async (req, res) => {
 
 //* CREATE ORDER FOR ITEMS IN THE CART
 module.exports.createOrder = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN CREATE ORDER
+  if (req?.user?.role !== 'user')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE LOGGED IN USER  ID
   const { _id } = req.user
 
@@ -895,6 +996,10 @@ module.exports.createOrder = async (req, res) => {
 
 //* GET ORDER
 module.exports.getOrder = async (req, res) => {
+  //* ONLY LOGGED IN USER CAN GET THEIR ORDER LIST
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING LOGGED IN USER
   const { _id } = req.user
 
@@ -904,6 +1009,11 @@ module.exports.getOrder = async (req, res) => {
 
     //* FIND THE USER ORDER
     const findOrder = await OrderModel.findOne({ orderBy: user._id })
+      .populate({
+        path: 'products.product',
+        select: ' -_id title count',
+      })
+      .populate({ path: 'orderBy', select: 'userName' })
 
     //* IF ORDER ISN'T FOUND
     if (!findOrder) return res.status(404).json({ message: 'no orders placed' })
@@ -913,4 +1023,36 @@ module.exports.getOrder = async (req, res) => {
   } catch (error) {
     console.log({ error })
   }
+}
+
+//* GET ACTIVE  USERS COUNTS
+module.exports.getActiveUsersCounts = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN GET ALL ACTIVE USERS COUNTS
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING ALL ACTIVE USER COUNTS
+  const activeCount = await UserModel.countDocuments({ active: true })
+
+  //* IF NO ACTIVE ADMINS....
+  if (!activeCount) return res.status(404).json({ active_Admins: 0 })
+
+  //* SEND A SUCCESS RESPONSE
+  res.status(200).json({ active_Users: activeCount })
+}
+
+//* GET OFFLINE  USERS COUNTS
+module.exports.getOfflineUsersCounts = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN GET ALL OFFLINE USERS COUNTS
+  if (req?.user?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING ALL OFFLINE ADMINS
+  const offlineCount = await AdminModel.countDocuments({ active: false })
+
+  //* IF NO OFFLINE USER
+  if (!offlineCount) return res.status(404).json({ offline: 0 })
+
+  //* SEND A SUCCESS RESPONSE
+  res.status(200).json({ offline_Users: offlineCount })
 }
