@@ -2,19 +2,19 @@
 const express = require('express')
 const router = express.Router()
 const controller = require('../controllers/category')
-const { AdminAuthToken } = require('../middleware/AdminAuthentication')
+const { authorization } = require('../middleware/authorization')
 
 //* URL ROUTES
 router.get('/', controller.get)
 
-router.get('/counts', AdminAuthToken, controller.getCategoryCounts)
+router.get('/counts', authorization, controller.getCategoryCounts)
 
-router.post('/create', AdminAuthToken, controller.post)
+router.post('/create', authorization, controller.post)
 
-router.get('/:id', AdminAuthToken, controller.getCategoryById)
+router.get('/:id', authorization, controller.getCategoryById)
 
-router.put('/:id', AdminAuthToken, controller.put)
+router.put('/:id', authorization, controller.put)
 
-router.delete('/:id', AdminAuthToken, controller.delete)
+router.delete('/:id', authorization, controller.delete)
 
 module.exports = router
