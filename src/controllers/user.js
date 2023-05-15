@@ -928,7 +928,7 @@ module.exports.applyDiscount = async (req, res) => {
 }
 
 //* CREATE ORDER FOR ITEMS IN THE CART
-module.exports.createOrder = async (req, res) => {
+module.exports.orderItemsInCart = async (req, res) => {
   //* ONLY LOGGED IN USER CAN CREATE ORDER
   if (req?.user?.role !== 'user')
     return res.status(401).json({ message: 'unauthorized' })
@@ -998,7 +998,7 @@ module.exports.createOrder = async (req, res) => {
 }
 
 //* GET ORDER
-module.exports.getOrder = async (req, res) => {
+module.exports.getOrderedItems = async (req, res) => {
   //* ONLY LOGGED IN USER CAN GET THEIR ORDER LIST
   if (req?.user?.role !== 'user')
     return res.status(401).json({ message: 'unauthorized' })
