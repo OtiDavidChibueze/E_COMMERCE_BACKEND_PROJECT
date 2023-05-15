@@ -7,6 +7,7 @@ const productSchemaValidation = (data) => {
       title: joi.string().required().lowercase().min(2),
       brand: joi.string().required(),
       price: joi.number().required().default(0),
+      sold: joi.number().min(0),
       countInStock: joi.number().required().min(0).max(1000),
       description: joi.string().required(),
       category: joi
