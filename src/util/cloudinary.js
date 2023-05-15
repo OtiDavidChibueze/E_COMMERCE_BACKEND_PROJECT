@@ -9,7 +9,7 @@ cloudinary.config({
   secure: true,
 })
 
-//* CLOUDINARY UPLOADS
+//* CLOUDINARY IMAGE UPLOADS
 const cloudinaryUploads = async (fileToUploads) => {
   return new Promise((resolve) => {
     cloudinary.uploader.upload(fileToUploads, (err, result) => {
@@ -20,6 +20,8 @@ const cloudinaryUploads = async (fileToUploads) => {
         return resolve(
           {
             urls: result.secure_url,
+            asset_id: result.asset_id,
+            public_id: result.public_id,
           },
           {
             resource_type: 'auto',
@@ -30,4 +32,27 @@ const cloudinaryUploads = async (fileToUploads) => {
   })
 }
 
-module.exports = cloudinaryUploads
+//* CLOUDINARY IMAGE DELETE
+const cloudinaryDelete = async (fileToDelete) => {
+  return new Promise((resolve) => {
+    cloudinary.uploader.destroy(fileToDelete, (err, result) => {
+      if (err) {
+        console.log(err)
+        return resolve(null)
+      } else {
+        return resolve(
+          {
+            urls: result.secure_url,
+            asset_id: result.asset_id,
+            public_id: result.public_id,
+          },
+          {
+            resource_type: 'auto',
+          }
+        )
+      }
+    })
+  })
+}
+
+module.exports = { cloudinaryUploads, cloudinaryDelete }
