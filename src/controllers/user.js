@@ -828,7 +828,7 @@ module.exports.addToCart = async (req, res) => {
 //* GET USER CART
 module.exports.getUserCart = async (req, res) => {
   //* ONLY LOGGED IN USER CAN GET THEIR CART LIST
-  if (req?.user?.role !== 'admin')
+  if (req?.user?.role !== 'user')
     return res.status(401).json({ message: 'unauthorized' })
 
   //*  GET THE LOGGED IN USER ID
@@ -978,7 +978,10 @@ module.exports.createOrder = async (req, res) => {
         updateOne: {
           filter: { _id: item.product._id },
           update: {
-            $inc: { countInStock: -item.countInStock, sold: +item.sold },
+            $inc: {
+              countInStock: -item.count,
+              sold: +item.count,
+            },
           },
         },
       }
@@ -997,7 +1000,7 @@ module.exports.createOrder = async (req, res) => {
 //* GET ORDER
 module.exports.getOrder = async (req, res) => {
   //* ONLY LOGGED IN USER CAN GET THEIR ORDER LIST
-  if (req?.user?.role !== 'admin')
+  if (req?.user?.role !== 'user')
     return res.status(401).json({ message: 'unauthorized' })
 
   //* GETTING LOGGED IN USER

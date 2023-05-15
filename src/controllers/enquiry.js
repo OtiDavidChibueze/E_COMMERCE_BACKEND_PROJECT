@@ -99,10 +99,6 @@ module.exports.post = async (req, res) => {
 
 //* UPDATE ENQUIRY BY ID
 module.exports.put = async (req, res) => {
-  //* VALIDATE CATEGORY SCHEMA
-  const { error } = EnquirySchemaValidation(req.body)
-  if (error) return res.status(422).json(error.details[0].message)
-
   //* CHECKING IF ITS A VALID ENQUIRY ID
   if (!mongoose.isValidObjectId(req.params.id))
     return res.status(400).json({ error: 'invalid Enquiry id' })
@@ -110,7 +106,9 @@ module.exports.put = async (req, res) => {
   //* UPDATING THE ENQUIRY
   const updateEnquiry = await EnquiryModel.findByIdAndUpdate(
     { _id: req.params.id },
-    req.body,
+    {
+      status: req.body.status,
+    },
     { new: true }
   )
 
