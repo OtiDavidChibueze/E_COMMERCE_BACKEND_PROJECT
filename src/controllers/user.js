@@ -972,7 +972,7 @@ module.exports.createOrder = async (req, res) => {
       orderBy: user._id,
     })
 
-    //* UPDATE THE PRODUCT COUNT IN STOCK AND SOLD
+    //* UPDATE THE PRODUCT COUNT_IN_STOCK AND SOLD
     const update = userCart.products.map((item) => {
       return {
         updateOne: {
