@@ -4,7 +4,7 @@ const ProductModel = require('../model/product')
 const CartModel = require('../model/cart')
 
 const jwt = require('jsonwebtoken')
-const { maxAge, createToken } = require('../jwt/isAdminToken')
+const { maxAge, createToken } = require('../jwt/createToken')
 
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
@@ -30,11 +30,20 @@ module.exports.get_All_Admins_And_Also_Search_Admins_With_Emails = async (
   req,
   res
 ) => {
+  //* ONLY ADMINS CAN GET ALL ADMINS
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* QUERY OPTIONS
     const options = {
       page: req.query.page ? parseInt(req.query.page) : 1,
       limit: req.query.limit ? parseInt(req.query.limit) : 5,
+      select: '-password',
+      populate: {
+        path: 'wishList',
+        select: 'title price -_id countInStock',
+      },
     }
 
     //*  LOOK FOR ADMINS USING THEIR EMAIL OR GET ALL ADMINS
@@ -63,7 +72,11 @@ module.exports.get_All_Admins_And_Also_Search_Admins_With_Emails = async (
 }
 
 //* GET ADMIN BY ID
-module.exports.get_Admins_by_id = async (req, res) => {
+module.exports.get_admins_by_id = async (req, res) => {
+  //* ONLY ADMINS CAN GET ALL ADMINS BY ID
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* GETTING THE DETAILS IN THE PARAMS
     const { adminId } = req.params
@@ -73,9 +86,9 @@ module.exports.get_Admins_by_id = async (req, res) => {
       return res.status(400).json({ error: 'invalid admin id' })
 
     //* GETTING THE ADMIN
-    const getAdmin = await AdminModel.findById(adminId).select(
-      '-password -_id -createdAt -updatedAt -__v'
-    )
+    const getAdmin = await AdminModel.findById(adminId)
+      .select('-password')
+      .populate({ path: 'wishList', select: 'title price -_id countInStock' })
 
     //* IF ADMIN ISN'T FOUND
     if (!getAdmin) {
@@ -89,7 +102,11 @@ module.exports.get_Admins_by_id = async (req, res) => {
 }
 
 //* GET ADMIN COUNTS
-module.exports.get_Admins_counts = async (req, res) => {
+module.exports.get_admins_counts = async (req, res) => {
+  //* ONLY ADMINS CAN GET ALL ADMINS COUNTS
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   try {
     //* GET COUNTS
     const counts = await AdminModel.countDocuments()
@@ -106,6 +123,10 @@ module.exports.get_Admins_counts = async (req, res) => {
 
 //* REGISTER ADMIN
 module.exports.post_register = async (req, res) => {
+  //* ONLY LOGGED IN SUPER ADMINS CAN REGISTER A SUPER ADMIN
+  if (req?.user?.role !== 'superAdmin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING ADMIN REGISTER SCHEMA
   const { error } = adminRegisterSchemaValidation(req.body)
   if (error) return res.status(422).json(error.details[0].message)
@@ -152,7 +173,7 @@ module.exports.post_register = async (req, res) => {
       })
     } else {
       //* SENDING THE ADMINS TOKEN IN A COOKIE AND A EXPIRATION DATE
-      const token = createToken(newAdmin._id)
+      const token = createToken(newAdmin.id)
       res.cookie('admin', token, { maxAge: maxAge * 1000, httpOnly: true })
       //* SEND A SUCCESS RESPONSE TO THE CLIENT AND THE ADMIN IS LOGGED IN IMMEDIATELY
       return res.status(201).json({ registered: newAdmin })
@@ -164,6 +185,10 @@ module.exports.post_register = async (req, res) => {
 
 //* UPDATE ADMIN
 module.exports.updateAdmin = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN UPDATE THEIR INFO
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = adminUpdateSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
@@ -202,27 +227,48 @@ module.exports.updateAdmin = async (req, res) => {
 }
 
 //* UPDATE ADMIN BY ID
-module.exports.put_update_Admin_By_Id = async (req, res) => {
+module.exports.put_update_admin_By_Id = async (req, res) => {
+  //* ONLY ADMINS CAN UPDATE ADMIN BY ID
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE DETAILS IN THE BODY
   const { error } = adminUpdateSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
 
+  //* GETTING THE ADMIN ID IN THE PARAMS
+  const { adminId } = req.params
+
+  //* CHECKING IF THE ADMIN ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.adminId))
+    return res.status(400).json({ error: 'invalid admin id' })
+
+  //* GETTING THE DETAILS IN THE BODY
+  const { adminName, country, mobile, address } = req.body
+
+  //* CHECKING IF MOBILE NUMBER EXIST BEFORE UPDATING....
+  const mobileExists = await AdminModel.findOne({ mobile })
+
+  //* IF EXISTS ....
+  if (mobileExists)
+    return res
+      .status(406)
+      .json({ status: 'not accepted', message: 'mobile already exists' })
+
   try {
-    //* GETTING THE ADMIN ID IN THE PARAMS
-    const { adminId } = req.params
-
-    //* VALIDATING SCHEMA
-    const { error } = adminUpdateSchemaValidation(req.body)
-    if (error) return res.status(422).send(error.details[0].message)
-
-    //* CHECKING IF THE ADMIN ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.adminId))
-      return res.status(400).json({ error: 'invalid admin id' })
-
     //* UPDATE THE ADMIN
-    const updateAdmin = await AdminModel.findByIdAndUpdate(adminId, req.body, {
-      new: true,
-    })
+    const updateAdmin = await AdminModel.findByIdAndUpdate(
+      adminId,
+      {
+        adminName: adminName,
+        country: country,
+        mobile: mobile,
+        address: address,
+      },
+      {
+        new: true,
+      }
+    ).select('-password')
 
     //* IF ERROR OCCURS DURING UPDATE
     if (!updateAdmin) {
@@ -264,25 +310,27 @@ module.exports.post_login = async (req, res) => {
           new: true,
         }
       )
-
       //* CREATE A LOGIN TOKEN FOR THE ADMIN
       const Token = jwt.sign(
         {
           adminId: admin.id,
+          role: admin.role,
         },
-        keys.ADMIN_SECRET,
+        keys.SECRET,
         {
           expiresIn: maxAge,
         }
       )
       //* STORE THE TOKEN IN A COOKIE
-      res.cookie('admin', Token, {
+      res.cookie('user', Token, {
         maxAge: maxAge * 1000,
         httpOnly: true,
       })
 
       //* SEND A SUCCESS RESPONSE TO THE CLIENT
-      res.status(200).json({ logged_in: admin })
+      res
+        .status(200)
+        .json({ logged_in: admin.email, message: 'access granted' })
     } else {
       //* SEND INCORRECT PASSWORD TO THE CLIENT
       res.status(406).json({
@@ -291,13 +339,18 @@ module.exports.post_login = async (req, res) => {
       })
     }
   } catch (error) {
-    res.status(400).json({ status: 'bad request', error: error })
+    console.log(error)
+    res.status(400).json({ status: 'bad request' })
   }
 }
 
 //* LOG OUT ADMIN
 module.exports.post_logOut = async (req, res) => {
-  //* ONLY LOGGED IN ADMIN CAN LOGOUT
+  //* ONLY LOGGED IN ADMIN CAN LOG OUT
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING THE ID OF THE LOGGED IN ADMIN
   const loggedInAdminId = req.admin._id
 
   //* FIND THE ADMIN AND UPDATE THE ACTIVE STATUS
@@ -312,7 +365,7 @@ module.exports.post_logOut = async (req, res) => {
   )
 
   //* REMOVE THE TOKEN FROM THE COOKIE
-  res.cookie('Admin', '', {
+  res.cookie('user', '', {
     maxAge: 1,
     httpOnly: true,
   })
@@ -327,16 +380,20 @@ module.exports.post_logOut = async (req, res) => {
 
 //* BLOCK A ADMIN
 module.exports.blockAdminById = async (req, res) => {
+  //* ONLY ADMINS CAN BLOCK ADMIN
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* CHECKING IF ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.adminId))
+    return res
+      .status(404)
+      .json({ status: 'not found', message: 'no admin with such id found' })
+
   //* GETTING THE ADMIN ID IN THE PARAMS
   const { adminId } = req.params
 
   try {
-    //* CHECKING IF ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.adminId))
-      return res
-        .status(404)
-        .json({ status: 'not found', message: 'no admin with such id found' })
-
     //* IF ADMIN WITH ID EXISTS ....
     const blockAdmin = await AdminModel.findByIdAndUpdate(
       adminId,
@@ -363,17 +420,21 @@ module.exports.blockAdminById = async (req, res) => {
 
 //* UNBLOCK ADMIN
 module.exports.unBlockAdminById = async (req, res) => {
+  //* ONLY ADMINS CAN UNBLOCK
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* CHECKING IF ID IS VALID
+  if (!mongoose.isValidObjectId(req.params.adminId))
+    return res.status(404).json({
+      status: 'not found',
+      message: 'no such admin with that id  found',
+    })
+
   //* GETTING THE ADMIN ID THE PARAMS
   const { adminId } = req.params
 
   try {
-    //* CHECKING IF ID IS VALID
-    if (!mongoose.isValidObjectId(req.params.adminId))
-      return res.status(404).json({
-        status: 'not found',
-        message: 'no such admin with that id  found',
-      })
-
     //* IF ADMIN WITH SUCH ID EXIST .....
     const blockAdmin = await AdminModel.findByIdAndUpdate(
       adminId,
@@ -399,6 +460,10 @@ module.exports.unBlockAdminById = async (req, res) => {
 
 //* CHANGE ADMIN PASSWORD
 module.exports.changeAdminPassword = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN CHANGE PASSWORD
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* VALIDATING THE ADMINS DETAILS IN THE BODY
   const { error } = resetAndChangePasswordValidation(req.body)
   //* IF ERROR OCCURS
@@ -536,7 +601,11 @@ module.exports.resetToken = async (req, res) => {
 }
 
 //* DELETE ADMIN BY ID
-module.exports.delete_Admin = async (req, res) => {
+module.exports.delete_admin = async (req, res) => {
+  //* ONLY ADMINS CAN DELETE ADMIN BY ID
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* CHECKING IF ITS A VALID ADMIN ID
   if (!mongoose.isValidObjectId(req.params.adminId))
     return res.status(400).json({ error: 'invalid admin id' })
@@ -566,6 +635,10 @@ module.exports.delete_Admin = async (req, res) => {
 
 //* ADD PRODUCT TO WISHLIST
 module.exports.addToWishList = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN ADD PRODUCT TO WISHLIST
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* ACCESSING THE DETAILS IN THE BODY
   const { productId } = req.body
 
@@ -612,14 +685,23 @@ module.exports.addToWishList = async (req, res) => {
 
 //* GET ADMIN WISHLIST
 module.exports.getWishList = async (req, res) => {
+  //* ONLY LOGGED IN ADMIN CAN GET THEIR WISHLIST
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
   //* GETTING THE LOGGED IN ADMIN ID
   const loggedInAdminId = req.admin._id
 
   try {
     //* FIND THE ADMIN WITH THE ID
-    const admin = await AdminModel.findById(loggedInAdminId).populate(
-      'wishList'
-    )
+    const admin = await AdminModel.findById(loggedInAdminId)
+      .populate({
+        path: 'wishList',
+        populate: { path: 'category', select: 'title -_id' },
+      })
+      .populate({
+        path: 'wishList',
+        populate: { path: 'brand', select: 'title -_id' },
+      })
 
     //* IF ADMIN EXISTS
     if (!admin) return res.status(404).json({ message: 'admin is not found' })
@@ -633,6 +715,10 @@ module.exports.getWishList = async (req, res) => {
 
 //* ADD ADDRESS
 module.exports.add_Address = async (req, res) => {
+  //* ONLY LOGGED IN ADMIN CAN ADD ADDRESS
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GET THE LOGGED IN ADMIN ID
   const loggedInAdminId = req.admin._id
 
@@ -670,6 +756,10 @@ module.exports.add_Address = async (req, res) => {
 
 //* ADD TO CART
 module.exports.addToCart = async (req, res) => {
+  //* ONLY LOGGED IN ADMIN CAN ADD TO CART
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE DETAILS IN THE BODY
   const { cart } = req.body
 
@@ -725,11 +815,11 @@ module.exports.addToCart = async (req, res) => {
     }
 
     //* CREATE A NEW CART
-    const newCart = new CartModel({
+    const newCart = await new CartModel({
       products,
       CartTotal,
       orderBy: admin._id,
-    })
+    }).populate({ path: 'products.product', select: 'title' })
 
     //* SAVE THE CHANGES
     await newCart.save()
@@ -743,6 +833,10 @@ module.exports.addToCart = async (req, res) => {
 
 //* GET ADMIN CART
 module.exports.getAdminCart = async (req, res) => {
+  //* ONLY LOGGED IN ADMIN CAN GET THEIR CART LIST
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //*  GET THE LOGGED IN ADMIN ID
   const { _id } = req.admin
 
@@ -768,6 +862,9 @@ module.exports.getAdminCart = async (req, res) => {
 
 //* EMPTY CART
 module.exports.emptyCart = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN LOG OUT
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
   //* GETTING THE LOGGED IN ADMIN ID
   const { _id } = req.admin
 
@@ -790,6 +887,10 @@ module.exports.emptyCart = async (req, res) => {
 
 //* APPLY DISCOUNT TO CART
 module.exports.applyDiscount = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN APPLY DISCOUNT TO CART
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE LOGGED IN ADMIN
   const { _id } = req.admin
 
@@ -834,6 +935,10 @@ module.exports.applyDiscount = async (req, res) => {
 
 //* CREATE ORDER FOR ITEMS IN THE CART
 module.exports.createOrder = async (req, res) => {
+  //* ONLY LOGGED IN ADMIN CAN CREATE ORDER
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING THE LOGGED IN ADMIN  ID
   const { _id } = req.admin
 
@@ -898,6 +1003,10 @@ module.exports.createOrder = async (req, res) => {
 
 //* GET ORDER
 module.exports.getOrder = async (req, res) => {
+  //* ONLY LOGGED IN ADMIN CAN GET THEIR ORDER LIST
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING LOGGED IN ADMIN
   const { _id } = req.admin
 
@@ -907,6 +1016,11 @@ module.exports.getOrder = async (req, res) => {
 
     //* FIND THE ADMIN ORDER
     const findOrder = await OrderModel.findOne({ orderBy: admin._id })
+      .populate({
+        path: 'products.product',
+        select: ' -_id title count',
+      })
+      .populate({ path: 'orderBy', select: 'adminName' })
 
     //* IF ORDER ISN'T FOUND
     if (!findOrder) return res.status(404).json({ message: 'no orders placed' })
@@ -918,37 +1032,13 @@ module.exports.getOrder = async (req, res) => {
   }
 }
 
-//* GET ACTIVE ADMINS
-module.exports.getActiveAdmins = async (req, res) => {
-  //* GETTING ALL ACTIVE  ADMINS
-  const Admins = await AdminModel.find({ active: true }).select(
-    'email isBlocked mobile country active'
-  )
-
-  //* IF NO ACTIVE ADMINS ....
-  if (!Admins) return res.status(404).json({ message: 'no active admins' })
-
-  //* SEND A SUCCESS RESPONSE
-  res.status(200).json({ active: Admins })
-}
-
-//* GET OFFLINE ADMINS
-module.exports.getOfflineAdmins = async (req, res) => {
-  //* GETTING ALL OFFLINE ADMINS
-  const Admins = await AdminModel.find({ active: false }).select(
-    'email isBlocked mobile country active'
-  )
-
-  //* IF NO OFFLINE ADMINS
-  if (!Admins) return res.status(404).json({ message: 'no offline admins' })
-
-  //* SEND A SUCCESS RESPONSE
-  res.status(200).json({ offline: Admins })
-}
-
 //* GET ACTIVE  ADMINS COUNTS
 module.exports.getActiveAdminsCounts = async (req, res) => {
-  //* GETTING ALL ACTIVE ADMINS COUNTS
+  //* ONLY LOGGED IN ADMINS CAN GET ALL ACTIVE ADMINS COUNTS
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
+  //* GETTING ALL ACTIVE ADMIN COUNTS
   const activeCount = await AdminModel.countDocuments({ active: true })
 
   //* IF NO ACTIVE ADMINS....
@@ -960,10 +1050,14 @@ module.exports.getActiveAdminsCounts = async (req, res) => {
 
 //* GET OFFLINE  ADMINS COUNTS
 module.exports.getOfflineAdminsCounts = async (req, res) => {
+  //* ONLY LOGGED IN ADMINS CAN GET ALL OFFLINE ADMINS COUNTS
+  if (req?.admin?.role !== 'admin')
+    return res.status(401).json({ message: 'unauthorized' })
+
   //* GETTING ALL OFFLINE ADMINS
   const offlineCount = await AdminModel.countDocuments({ active: false })
 
-  //* IF NO OFFLINE ADMINS
+  //* IF NO OFFLINE ADMIN
   if (!offlineCount) return res.status(404).json({ offline: 0 })
 
   //* SEND A SUCCESS RESPONSE
