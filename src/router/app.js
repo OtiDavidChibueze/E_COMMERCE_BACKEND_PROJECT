@@ -18,6 +18,7 @@ const SuperAdmin_router = require('../router/superAdmin')
 const Brand_router = require('../router/brand')
 const Coupon_router = require('../router/coupon')
 const Color_router = require('../router/color')
+const Enquiry_router = require('./enquiry')
 
 app.use(cors())
 app.options('*', cors())
@@ -35,6 +36,8 @@ app.use('/api/eshop/superAdmin', SuperAdmin_router)
 app.use('/api/eshop/brand', Brand_router)
 app.use('/api/eshop/coupon', Coupon_router)
 app.use('/api/eshop/color', Color_router)
+app.use('/api/eshop/enquiry', Enquiry_router)
+
 app.get('/api/eshop/home', (req, res) => {
   res.status(200).json('E-commerce Page')
 })
