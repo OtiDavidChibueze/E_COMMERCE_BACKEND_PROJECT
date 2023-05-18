@@ -3,7 +3,7 @@ const ProductModel = require('../model/product')
 const mongoose = require('mongoose')
 const { productSchemaValidation } = require('../Validations/schema/product')
 const slugify = require('slugify')
-const UserModel = require('../model/user')
+const CategoryModel = require('../model/category')
 const BrandModel = require('../model/brand')
 const { cloudinaryUploads, cloudinaryDelete } = require('../util/cloudinary')
 const fs = require('fs')
@@ -91,28 +91,44 @@ module.exports.add_products = async (req, res) => {
   const { error } = productSchemaValidation(req.body)
   if (error) return res.status(400).json(error.details[0].message)
 
+  //* SLUGIFY THE SLUG
   if (req.body.title) {
     req.body.slug = slugify(req.body.title)
   }
 
+  //* CHECKING IF THE SLUG EXISTS BEFORE CREATING A PRODUCT
   const slugExists = await ProductModel.findOne({ slug: req.body.slug })
   if (slugExists)
     return res.status(400).json({ message: 'product slug already exists' })
 
+  //* CHECKING IF THE BRAND EXISTS BEFORE CREATING A PRODUCT
   const brandExist = await BrandModel.findById({ _id: req.body.brand })
   if (!brandExist)
     return res.status(404).json({ message: 'no such brand with this id found' })
 
+  //* CHECKING IF THE CATEGORY EXISTS BEFORE CREATING A PRODUCT
+  const CategoryExist = await CategoryModel.findById({
+    _id: req.body.categoryId,
+  })
+  if (CategoryExist)
+    return res
+      .status(404)
+      .json({ message: 'no such category with this id found' })
+
+  //* CREATING A NEW PRODUCT
   const product = new ProductModel(req.body)
 
+  //* SAVE THE PRODUCT
   await product.save()
 
-  if (product) {
-    return res.status(201).json({ created: product })
-  } else {
+  //* IF ERROR OCCURS DURING CREATION...
+  if (!product) {
     return res
       .status(500)
       .json({ created: false, message: 'product not created' })
+  } else {
+    //* SEND A SUCCESS RESPONSE TO THE CLIENT
+    return res.status(201).json({ created: product })
   }
 }
 
