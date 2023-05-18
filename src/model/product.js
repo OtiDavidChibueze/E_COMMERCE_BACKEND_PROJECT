@@ -45,8 +45,8 @@ const ProductSchema = new Schema(
     images: [],
     color: [],
     tags: [],
-    category: {
-      type: String,
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
       required: true,
     },
